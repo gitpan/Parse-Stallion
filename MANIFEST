@@ -1,0 +1,23 @@
+Changes
+Makefile.PL
+MANIFEST
+README
+t/date_parsing.t
+t/simple_calc.t
+t/alias_test.t
+t/look_at_tree.t
+t/calculator_parsing.t
+t/simp.t
+t/empty.t
+t/calc_scan_parse.t
+t/date_with_no_end_string.t
+t/calc_scan_with_no_end.t
+t/program.t
+t/csv.t_1
+t/csv.t_2
+t/csv.t
+t/object_string.t
+lib/Parse/Stallion.pm
+lib/Parse/Stallion/CSV.pm
+lib/Parse/Stallion/CSVFH.pm
+META.yml                                 Module meta-data (added by MakeMaker)

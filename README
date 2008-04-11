@@ -1,0 +1,32 @@
+Parse-Stallion version 0.01
+===========================
+
+INSTALLATION
+
+To install this module type the following:
+
+   perl Makefile.PL
+   make
+   make test
+   make install
+
+SUPPORT AND DOCUMENTATION
+
+After installing, you can find documentation for this module with the perldoc command.
+
+    perldoc Parse::Stallion
+
+
+DEPENDENCIES
+
+This module requires these other modules and libraries:
+
+  Test::More
+  Time::Local
+
+COPYRIGHT AND LICENCE
+
+Copyright (C) 2008 by Arthur Goldstein, arthur@acm.org
+
+This module is currently being developed/tested.  Please email comments.
+
