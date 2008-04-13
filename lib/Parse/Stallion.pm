@@ -6,7 +6,7 @@ use Carp;
 use strict;
 use warnings;
 use 5.006; #? needs to be tested to determine how far back this can go
-our $VERSION = '0.006'; #TESTING
+our $VERSION = '0.007'; #TESTING
 
 sub new {
   my $type = shift;
@@ -1696,7 +1696,7 @@ The following rules all parse tree-wise equivalently.
 =head3 NESTED RULES
 
 Rules can be nested inside of other rules, cutting down on the code required.
-See the section on EVALUATION for how nested rules affect tree
+See the section B<EVALUATION> for how nested rules affect tree
 evaluations.
 
 To nest a rule, place it inside of a reference to a hash.
@@ -1724,14 +1724,14 @@ parse tree. Example:
 
 =head3 RULE NAMES
 
-Avoid naming rules with the strings '__XX__', '__XY__',
+Avoid naming rules with the substrings '__XX__', '__XY__',
 or '__XZ__', to avoid confliciting with the derived nested rules' names.
 
 =head3 ENSURING RULES FORM COMPLETE GRAMMAR
 
-Stallion ensures that a grammar is complete and croaks if
+Stallion ensures that a grammar is complete and 'croak's if
 the given grammar has any rules not reachable from the start rule
-or if within any rule, a child rule does not exist.
+or if within any rule a child rule does not exist.
 
 =head2 PARSING
 
@@ -1995,8 +1995,6 @@ single values one can call the routine which_parameters_are_arrays.
 
 =head2 PARSING NON-STRINGS
 
-THIS SECTION IS STILL BEING WORKED ON
-
 In order to parse something other than a string, three subroutines
 must be provided: an increasing_value function for ensuring
 parsing is proceeding correctly, a B<leaf>
@@ -2182,9 +2180,7 @@ Are scan_array's so important as to warrant a separate parameter?
 
 Look up Extended Backus-Naur Form notation and trace back from there.
 
-The examples directory.
-
 Please send suggestions.
-What comes to mind is lex, yacc, Parse::RecDescent, ..., all other parsers.
+What comes to mind is lex, yacc, Parse::RecDescent, ..., other parsers.
 
 =cut
