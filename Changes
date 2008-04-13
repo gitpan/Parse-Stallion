@@ -1,4 +1,7 @@
 Revision history for Perl extension Parse::Stallion.
 
+0.006  Modified test script date_parsing.t to handle different operating
+ systems that apparently have a different epoch.
+
 0.005  Originally released version.
 

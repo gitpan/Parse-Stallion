@@ -57,7 +57,7 @@ $rule{standard_date} = { rule_type => 'leaf',
 };
 $rule{special_date} = { rule_type => 'leaf',
   regex_match => qr/now/i,
-  evaluation => sub {return 1186288824}
+  evaluation => sub {return timelocal(24,40,0,5, 7, 2007);},
 };
 $rule{time} = { rule_type => 'or',
   any_one_of => ['just_time', 'just_time_plus_list', 'just_time_minus_list']
