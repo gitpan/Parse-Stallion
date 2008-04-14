@@ -9,7 +9,7 @@ $rule{start_date} = { rule_type => 'and',
   composed_of => ['parsed_date'],
   evaluation => sub {my $seconds_since_epoch = $_[0]->{parsed_date};
     my ($seconds, $minutes, $hour, $mday, $month, $year) =
-     localtime($seconds_since_epoch);
+     gmtime($seconds_since_epoch);
     $month++;  #Have January be 01 instead of 00.
     if ($month < 10) { $month = '0'.$month;};
     if ($mday < 10) { $mday = '0'.$mday;};
@@ -49,12 +49,12 @@ $rule{standard_date} = { rule_type => 'leaf',
     my $month = $1 -1;
     my $mday = $2;
     my $year = $3;
-    return timelocal(0,0,0,$mday, $month, $year);
+    return timegm(0,0,0,$mday, $month, $year);
   },
 };
 $rule{special_date} = { rule_type => 'leaf',
   regex_match => qr/now/i,
-  evaluation => sub {return 1186288824}
+  evaluation => sub {return timegm(24,40,0,5, 7, 2007);}
 };
 $rule{time} = { rule_type => 'or',
   any_one_of => ['just_time', 'just_time_plus_list', 'just_time_minus_list']

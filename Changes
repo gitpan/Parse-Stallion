@@ -1,5 +1,8 @@
 Revision history for Perl extension Parse::Stallion.
 
+0.008  Modified test script date_with_no_end_string.t to handle different operating
+ systems that have different localtimes
+
 0.007  Modified test script date_parsing.t to handle different operating
  systems that have different localtimes?
 

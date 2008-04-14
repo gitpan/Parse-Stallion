@@ -6,7 +6,7 @@ use Carp;
 use strict;
 use warnings;
 use 5.006; #? needs to be tested to determine how far back this can go
-our $VERSION = '0.007'; #TESTING
+our $VERSION = '0.008'; #TESTING
 
 sub new {
   my $type = shift;
