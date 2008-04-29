@@ -137,7 +137,7 @@ Parse::Stallion::CSVFH - Comma Separated Values from file handle
 
 =head1 SYNOPSIS
 
-NOTE: this is still under the testing phase
+  This is primarily for demonstrating Parse::Stallion.
 
   use Parse::Stallion::CSVFH;
 
@@ -154,9 +154,25 @@ NOTE: this is still under the testing phase
   }
   # else $result contains reference to array of arrays
 
+If the file handle refers to a file containing:
+
+ "abc sdf, sdf",add,eff
+ jff,"slk,lwer,sd
+ sdfkl,sdf,sdf,sdf",ke
+ lkwer,fsjk,sdf
+
+Then result will be:
+
+ { 'header' => [ 'abc sdf, sdf', 'add', 'eff' ],
+   'records' => [
+     [ 'jff', "slk,lwer,sd\nsdfkl,sdf,sdf,sdf", 'ke' ],
+     [ 'lkwer', 'fsjk', 'sdf' ]
+    ]
+ }
+
 =head1 DESCRIPTION
 
-Reads a comma separated value file or string, returning a reference.
-to an array of arrays (or of hashes).
+Reads a comma separated value file via a given file handle,
+returning a reference to a hash containing the headers and the data. 
 
 =cut

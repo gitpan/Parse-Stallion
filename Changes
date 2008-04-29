@@ -1,5 +1,11 @@
 Revision history for Perl extension Parse::Stallion.
 
+0.009  Multiple rules can now have named-subrules when defining
+       them.  Demonstrated in Parse::Stallion::CSV.
+       Minor changes to the documentation.
+       Parse::Stallion::CSV was corrected to handle
+       quotes and the documentation for it was expanded.
+
 0.008  Modified test script date_with_no_end_string.t to handle different operating
  systems that have different localtimes
 

@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #Copyright 2007-8 Arthur S Goldstein
-use Test::More tests => 5;
+use Test::More tests => 6;
 BEGIN { use_ok('Parse::Stallion::CSV') };
 BEGIN { use_ok('Parse::Stallion::CSVFH') };
 
@@ -78,6 +78,37 @@ open $file_handle, "<", "t/csv.t_2";
 eval {$result = $h_csv_stallion->parse_and_evaluate(
   {parse_this=>$file_handle})};
 like ($@, qr /Row 1 has an error in field count/,'bad field count');
+
+  my $input_string = 'header1,header2,header3'."\n";
+  $input_string .= 'field_1_1,field_1_2,field_1_3'."\n";
+   $input_string .= 
+   '"field_2_1 3 words",field_2_2 3 words,"""field3_2 x"""'."\n";
+
+
+  $result = eval {$csv_stallion->
+   parse_and_evaluate({parse_this=>$input_string})};
+
+  is_deeply($result,
+{
+          'records' => [
+                         [
+                           'field_1_1',
+                           'field_1_2',
+                           'field_1_3'
+                         ],
+                         [
+                           'field_2_1 3 words',
+                           'field_2_2 3 words',
+                           '"field3_2 x"'
+                         ]
+                       ],
+          'header' => [
+                        'header1',
+                        'header2',
+                        'header3'
+                      ]
+        },
+    'with double quotes');
 
 print "\nAll done\n";
 

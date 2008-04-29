@@ -1,12 +1,11 @@
 #Copyright 2007-8 Arthur S Goldstein
-#TESTING PHASE
 
 package Parse::Stallion::Talon;
 use Carp;
 use strict;
 use warnings;
-use 5.006; #? needs to be tested to determine how far back this can go
-our $VERSION = '0.008'; #TESTING
+use 5.006;
+our $VERSION = '0.009';
 
 sub new {
   my $type = shift;
@@ -234,13 +233,14 @@ sub new {
 
   $self->{keep_white_space} = $parameters->{keep_white_space};
   $self->{scanner} = $parameters->{scanner};
+  $self->{not_string} = $parameters->{not_string};
   $self->{on_start} = $parameters->{on_start};
   $string_being_parsed_yn = 0;
   $scan_array_being_parsed = 0;
   if ($self->{scanner}) {
     $scan_array_being_parsed = 1;
   }
-  else {
+  elsif (!$self->{not_string}) {
     $string_being_parsed_yn = 1;
   }
   bless $self, $class;
@@ -1061,7 +1061,6 @@ sub add_rule {
           $rule_name_or_rule = $rule_name_or_rule->[0];
         }
         if (ref $rule_name_or_rule eq 'HASH') {
-          my $generated_name = 0;
           if (!exists $rule_name_or_rule->{rule_name}) {
             $rule_name_or_rule->{rule_name} =
              $rule_name.'__XX__'.$unique_name_counter++;
@@ -1147,18 +1146,29 @@ sub add_rule {
     }
     if (defined $repeating) {
       if (ref $repeating eq 'HASH') {
+        my $named_subrule;
         if (!defined $repeating->{rule_name}) {
           $repeating->{rule_name} =
            $rule_name.'__XW__'.$unique_name_counter++;
+          $repeating->{generated} =
+           $self->{rule}->{$rule_name}->{generated} || $rule_name;
+          $named_subrule = 0;
         }
-        $repeating->{generated} =
-         $self->{rule}->{$rule_name}->{generated} || $rule_name;
+        else {
+          $self->{rule}->{$rule_name}->{rule_count}->{$repeating->{rule_name}}
+           = 2;
+          $self->{rule}->{$rule_name}->{repeating_alias} =
+           $repeating->{rule_name};
+          $named_subrule = 1;
+        }
         $self->add_rule($repeating);
         my $sub_rule_name = $repeating->{rule_name};
         $self->{rule}->{$rule_name}->{repeating} = $sub_rule_name;
-        foreach my $counted_rule (keys 
-         %{$self->{rule}->{$sub_rule_name}->{rule_count}}) {
-          $self->{rule}->{$rule_name}->{rule_count}->{$counted_rule} = 2;
+        if (!$named_subrule) {
+          foreach my $counted_rule (keys 
+           %{$self->{rule}->{$sub_rule_name}->{rule_count}}) {
+            $self->{rule}->{$rule_name}->{rule_count}->{$counted_rule} = 2;
+          }
         }
       }
       else {
@@ -1421,6 +1431,7 @@ sub do_tree_evaluation {
         }
         else {
           if (!defined $alias) {$alias = ''};
+          #push @{$parent->{child_values}->{$alias}}, $result;
           $parent->{child_values}->{$alias} = $result;
         }
       }
@@ -1470,8 +1481,6 @@ Parse::Stallion - Perl backtracking parser and resultant tree evaluator
 
 =head1 SYNOPSIS
 
-NOTE: this is still under the testing phase
-
   use Parse::Stallion;
 
   my %rules = (rule_name_1 => {..rule_definition..},
@@ -1500,32 +1509,37 @@ Rule Definitions:
 =head1 DESCRIPTION
 
 Stallion parses a string into a parse tree using entered grammar rules.
-The parsing is done in a depth first search manner, when a rule
-does not match the parser backtracks to a node that has another
-rule option.
-If successfully parsed, the tree is then evaluated in bottom up,
+The parsing is done top-down via an initial start rule,
+in a depth first search.
+When a rule does not match the parser backtracks to a node that has another
+option.
+If successfully parsed, the tree may then be evaluated in bottom up,
 left to right order,
-by calling each node's rule's subroutine.
+by calling each tree node's rule's subroutine.
+The subroutine is given one parameter: a reference to a hash representing
+the returned values of the named sub-nodes.
 
 Some familiarity is assumed with parsing, the grammars recognized are
-context free and are essentially to Extended Backus Normal Form.
+context free and essentially correspond to Extended Backus Normal Form.
 
 The object being parsed does not need to be a string.  Except for
 the section on non-strings, the documentation assumes strings are being parsed.
 
-=head3 COMPLETE EXAMPLE
+=head2 COMPLETE EXAMPLES
 
-The following grammar reads in two unsigned integers and adds them.
+The following examples read in two unsigned integers and adds them.
 
   use Parse::Stallion;
 
    my %basic_grammar = (
     expression => {
-     and => ['number', {regex_match => qr/\s*[+]\s*/},
-      ['number', 'right_number'], {regex_match => qr/\z/}],
-      evaluation => sub {return $_[0]->{number} + $_[0]->{right_number}}
+     and => ['number',
+       {regex_match => qr/\s*\+\s*/},
+      'number'],
+      evaluation => sub {return $_[0]->{number}->[0] + $_[0]->{number}->[1]}
     },
-    number => {regex_match => qr/\d+/, evaluation => sub{return 0 + $_[0];}}
+    number => {regex_match => qr/\d+/,
+      evaluation => sub{return 0 + $_[0];}}
      #0 + $_[0] converts the matched string into a number
    );
 
@@ -1534,6 +1548,23 @@ The following grammar reads in two unsigned integers and adds them.
 
    my $result = $parser->parse_and_evaluate({parse_this=>'7+4'});
    #$result should contain 11
+
+   my %basic_grammar_2 = (
+    expression => {
+     and => ['number',
+      {regex_match => qr/\s*\+\s*/},
+      ['number', 'right_number']],
+      evaluation => sub {return $_[0]->{number} + $_[0]->{right_number}}
+    },
+    number => {regex_match => qr/\d+/,
+      evaluation => sub{return 0 + $_[0];}}
+   );
+
+   my $parser_2 = new Parse::Stallion(
+   {rules_to_set_up_hash => \%basic_grammar_2, start_rule => 'expression'});
+
+   my $result_2 = $parser_2->parse_and_evaluate({parse_this=>'8+5'});
+   #$result_2 should contain 13
 
 
 =head2 RULES
@@ -1677,7 +1708,7 @@ if the number of child nodes falls below the minimum,
 all child nodes are removed and the
 B<'multiple'> rule node is removed from the parse tree.
 
-=head3 Similarity between rule types.
+=head3 SIMILARITY BETWEEN RULE TYPES.
 
 The following rules all parse tree-wise equivalently.
 
@@ -1886,7 +1917,7 @@ By nesting a rule with an alias,
 the alias is used for the name of the hash parameter instead of
 the rule name.
 
-=head3 Default evaluation routine
+=head3 DEFAULT EVALUATION ROUTINE
 
 If a rule does not have an evaluation routine specified,
 a default subroutine is used
@@ -2026,7 +2057,7 @@ and a B<'leaf'> rule unmodifier for when the parser is backtracking.
 When evaluating the parse tree, the parameters to the leaf nodes are
 the values returned in parse_foward, $value_to_store_in_leaf_node.
 
-=head3 B<'Leaf'> Leaf parse forward/backtrack
+=head3 B<'LEAF'> LEAF PARSE FORWARD/BACKTRACK
 
 All leaf rules need to be set up such that when the
 parser is moving forward and reaches a B<'leaf'>, the
@@ -2041,7 +2072,7 @@ the state before being matched by the B<'leaf'> rule.
 In parsing a string, substrings are removed from the beginning of the
 string and reattached to the beginning when backtracked.
 
-=head3 Increasing_value
+=head3 INCREASING_VALUE FUNCTION
 
 A function, called 'increasing_value', must be provided that takes
 the object being parsed and returns a numeric value that either is
@@ -2064,7 +2095,7 @@ backtracking.
 In parsing a input string, the negative of the length of the input
 string is used as the increasing function.
 
-=head3 Strings
+=head3 STRINGS
 
 By default, strings are matched, which is similar to
 
@@ -2106,7 +2137,7 @@ By default, strings are matched, which is similar to
   });
 
 
-=head3 Scanned Arrays
+=head3 SCANNED ARRAYS
 
 The following lexical analyzer/parser combination illustrates parsing
 a non-string.
@@ -2132,17 +2163,12 @@ Arthur Goldstein, E<lt>arthur@acm.orgE<gt>
 =head1 COPYRIGHT AND LICENSE
 
 Copyright (C) 2007-8 by Arthur Goldstein
-Not released, testing only.
 
 =head1 BUGS
 
-Testing phase, please email in bug reports.
+Please email in bug reports.
 
 =head1 TO DO AND FUTURE POSSIBLE CHANGES
-
-This is in the test phase, please send suggestions.
-
-=head2 OTHERS
 
 Determine if 'or' rules should have behavior that they cannot be repeated on
 the same string or they should just not repeat the chosen child on the
@@ -2152,19 +2178,8 @@ Document or remove other %results returned.
 
 The code uses global variables, this is done deliberately in order
 to speed up the search, though not clear if this is really need.
-Benefits of not having global variables would
-be possibly cleaner code as well as possibly being thread safe.
 
-Examples of routines: which_parameters_are_arrays, increasing_value,
-make_sure_all_names_covered, and make_sure_all_rules_reachable.
-
-Have an option to turn off backtracking (on ands?)?  This would speed up
-some grammars, and have the parser behave as a left recursive descent parser?
-
-Simplify documentation by not saying how code works?
-
-Right now Parse::Stallion
- requires Test::More and Time::Local and perl 5.6 or higher.
+Parse::Stallion requires Test::More and Time::Local and perl 5.6 or higher.
 This is due to the installation test cases and the way the
  makefile is set up.  Should
 work with earlier versions of perl and neither of those modules is
@@ -2179,6 +2194,8 @@ Are scan_array's so important as to warrant a separate parameter?
 =head1 SEE ALSO
 
 Look up Extended Backus-Naur Form notation and trace back from there.
+
+Parse::Stallion::CSV, another example of how to use Parse::Stallion.
 
 Please send suggestions.
 What comes to mind is lex, yacc, Parse::RecDescent, ..., other parsers.
