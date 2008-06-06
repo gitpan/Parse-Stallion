@@ -127,6 +127,7 @@ identifier => {
 constant => {
   leaf => qr/\d+/,
   evaluation => sub {
+#print STDERR "constant of ".$_[0]."\n";
     push @results_array, {token=>'constant', value => $_[0]};
   }
  }

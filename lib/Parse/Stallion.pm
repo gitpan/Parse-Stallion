@@ -5,7 +5,7 @@ use Carp;
 use strict;
 use warnings;
 use 5.006;
-our $VERSION = '0.009';
+our $VERSION = '0.01';
 
 sub new {
   my $type = shift;
@@ -198,13 +198,15 @@ my $moving_forward;
 my $moving_down;
 my $steps;
 my $trace;
+my $do_evaluation_in_parsing;
 my $string_being_parsed_yn;
 my $scan_array_being_parsed;
-my %steps_in_node;
 my $object_being_parsed;
 my @current_scan_array;
 my %rules_from_root_to_current;
 my %rules_from_root_to_current_count;
+my $parsing_evaluation_hash_ref;
+my @parsing_evaluation_hash_stack;
  #rules from root to current: purposes: prevent infinite loops,
  # it is a hash ref of newly traversed rules on the current string.
  #the have value corresponds to 
@@ -221,6 +223,10 @@ my %total_rule_count;
 my %ventured_out_on;
 my $latest_stallion;
 
+sub empty_parse_function {
+  return shift;
+}
+
 sub new {
   my $type = shift;
   my $class = ref($type) || $type;
@@ -228,13 +234,14 @@ sub new {
   my $self = {};
   $latest_stallion = $self;
   my ($and_nodes, $or_nodes, $leaf_nodes) = @_;
-#  $self->{rule_list} = $parameters->{rule_list};
-#  $self->{rule} = $self->{rule_list}->return_rule_hash_ref();
 
   $self->{keep_white_space} = $parameters->{keep_white_space};
   $self->{scanner} = $parameters->{scanner};
+  $do_evaluation_in_parsing = $self->{do_evaluation_in_parsing}
+   = $parameters->{do_evaluation_in_parsing}
+   || 0;
   $self->{not_string} = $parameters->{not_string};
-  $self->{on_start} = $parameters->{on_start};
+  $self->{croak_on_failing} = $parameters->{croak_on_failing};
   $string_being_parsed_yn = 0;
   $scan_array_being_parsed = 0;
   if ($self->{scanner}) {
@@ -243,6 +250,8 @@ sub new {
   elsif (!$self->{not_string}) {
     $string_being_parsed_yn = 1;
   }
+  $self->{parse_function} = $parameters->{parse_function} ||
+   \&empty_parse_function;
   bless $self, $class;
   if (defined $parameters->{rules_to_set_up_hash}) {
     $self->set_up_full_rule_set($parameters);
@@ -259,12 +268,29 @@ sub parse_and_evaluate {
   my $self = shift;
   my $parameters = shift;
   my $parse_results = $self->parse($parameters);
-  if ($self->{parse_failed}) {croak "Parse failed\n"};
+  if ($self->{parse_failed} && $self->{croak_on_failing}) {
+    croak "Parse failed\n"
+  }
+  if (exists $self->{results}->{parsing_evaluation}) {
+#print STDERR "Using pe\n";
+   return $self->{results}->{parsing_evaluation}};
+#print STDERR "calling dte\n";
   return $self->do_tree_evaluation({tree=>$parse_results->{tree}});
 }
 
+sub display_value {
+  if ($string_being_parsed_yn) {
+    return $object_being_parsed;
+  }
+  elsif ($scan_array_being_parsed) {
+    return $#{$object_being_parsed};
+  }
+}
+my $display_value = \&display_value;
+
 sub increasing_value {
   if ($string_being_parsed_yn) {
+    if (!defined $object_being_parsed) {return 0};
     return 0 - length($object_being_parsed);
   }
   elsif ($scan_array_being_parsed) {
@@ -276,10 +302,12 @@ my $increasing_value = \&increasing_value;
 sub end_of_parse_allowed {
   if ($string_being_parsed_yn) {
 #print STDERR "string $object_being_parsed\n";
+    if (!defined $object_being_parsed) { return 1};
     return $object_being_parsed eq '';
   }
   elsif ($scan_array_being_parsed) {
 #print STDERR "scn\n";
+    if (!defined $object_being_parsed) { return 1};
     return $#{$object_being_parsed} == -1;
   }
   else {
@@ -291,6 +319,7 @@ sub parse {
   my $self = shift;
   my $parameters = shift;
   my @scan_array;
+#print STDERR "Parse called\n";
   if ($parameters->{scan_array}) {
     @scan_array = @{$parameters->{scan_array}};
     $object_being_parsed = \@scan_array;
@@ -310,10 +339,13 @@ sub parse {
     $start_node = $self->{default_starting_rule};
   }
   $trace = $parameters->{trace};
+  $self->{parse_trace} = [];
   my $max_steps = $parameters->{max_steps} || 20000;
   %rules_from_root_to_current = ();
   %rules_from_root_to_current_count = ();
   %total_rule_count = ($start_node => 1);
+  @parsing_evaluation_hash_stack = (['beginning',{}]);
+  $parsing_evaluation_hash_ref = [$start_node,{}];
   #@steps_on_node = ();
 
   $tree = new Parse::Stallion::Talon({
@@ -324,14 +356,10 @@ sub parse {
   });
   $self->{tree} = $tree;
 
-  if ($self->{on_start}) {
-    &{$self->{on_start}}($object_being_parsed, $match_hash)
-  };
   my %parsing_info;
   $current_node = $tree;
   $moving_forward = 1;
   $moving_down = 1;
-  %steps_in_node = ();
   %ventured_out_on = ();
   $steps = 0;
   $parsing_info{moved_beyond} = {};
@@ -353,30 +381,39 @@ sub parse {
       $moving_forward = 0;
       $moving_down = 1;
       $current_node = $tree;
+      $parsing_evaluation_hash_ref =
+       $current_node->{values}->{parsing_evaluation_hash};
     }
   }
+#print STDERR "parse ended\n";
   my %results;
   $results{number_of_steps} = $steps;
   $results{did_not_move_beyond} = $parsing_info{did_not_move_beyond};
   $results{moved_beyond} = $parsing_info{moved_beyond};
-  $results{steps_in_node} = \%steps_in_node;
   $results{total_rule_count} = \%total_rule_count;
+  $results{parse_trace} = $self->{parse_trace};
   if ($moving_forward && $steps < $max_steps) {
     $results{parse_succeeded} = 1;
     $results{parse_failed} = 0;
+#print STDERR "Parse succeeded\n";
   }
   else {
     $results{parse_succeeded} = 0;
     $self->{parse_failed} = $results{parse_failed} = 1;
+#print STDERR "Parse failed mf $moving_forward steps $steps ms $max_steps\n";
   }
   foreach my $node ($tree->bottom_up_depth_first_search) {
+#use Data::Dumper;
+#print STDERR "nv ".Dumper($node->{values})."\n";
     if ($trace) {
       print STDERR "considering node ".$node->{values}->{steps}."\n";
     }
     if (exists $node->values->{parse_match}) {
+#print STDERR "have pm\n";
       $node->{values}->{pvalue} = $node->values->{parse_match};
     }
     elsif (!exists $node->{values}->{pvalue}) {
+#print STDERR "have no pv\n";
       $node->{values}->{pvalue} = '';
     }
     if ($string_being_parsed_yn && !$self->{keep_white_space}) {
@@ -408,7 +445,16 @@ print STDERR $tree->stringify({
   $results{tree} =
     $tree->copy_node_and_sub_nodes({values_to_copy=>[
      'pvalue', 'name','alias']});
-  return \%results; 
+#  if (!($self->{scanner}) && $self->{do_evaluation_in_parsing}) {}
+  if ($self->{do_evaluation_in_parsing}) {
+    $results{parsing_evaluation} =
+     $parsing_evaluation_hash_ref->[1]->{''};
+#use Data::Dumper;
+#print STDERR "set pehr to ".Dumper($parsing_evaluation_hash_ref)."\n";
+  }
+#use Data::Dumper;
+#print STDERR "pehr ".Dumper($parsing_evaluation_hash_ref)."\n";
+  return $self->{results} = \%results; 
 }
 
 sub parse_step {
@@ -416,18 +462,29 @@ sub parse_step {
   my $parameters = shift;
   #my $current_node = $parameters->{current_node};
 
-  $self->count_steps_in_active_nodes;
+  $object_being_parsed = &{$self->{parse_function}}($object_being_parsed);
   $current_node_name = $current_node->values->{name};
   $rule = $rule_ref->{$current_node_name};
   $current_position = $current_node->{values}->{position};
   $parameters->{blocked} = 0;
   my $current_node_type = $rule_ref->{$current_node_name}->{rule_type};
+#print STDERR "mf $moving_forward md $moving_down ";
+#print STDERR $current_node_name." reporting to ";
+#print STDERR $parsing_evaluation_hash_ref->[0];
+#print STDERR ": ".$object_being_parsed."\n";
   if (!$handle_rule_type{$current_node_type}) {
     croak("unknown rule type $current_node_type for rule $current_node_name\n");
   }
 #print STDERR "nt $current_node_type cnn $current_node_name\n";
 #print STDERR "cp $current_position \n";
+  push @{$self->{parse_trace}}, {
+   rule_name => $current_node_name,
+   moving_forward => $moving_forward,
+   moving_down => $moving_down,
+   value => &$display_value($object_being_parsed),
+  };
   &{$handle_rule_type{$current_node_type}}($self, $parameters);
+#print STDERR "after pehs ".Dumper(\@parsing_evaluation_hash_stack)."\n";
   return;
 }
 
@@ -474,13 +531,74 @@ sub create_child {
    $current_node;
   $total_rule_count{$current_node->{values}->{name}}++;
   $rules_from_root_to_current_count{$current_node->{values}->{name}}++;
+  if (($rule_ref->{$child_rule_name}->{rule_type} ne 'leaf') &&
+   ($rule_ref->{$child_rule_name}->{rule_type} ne 'scan_leaf') &&
+   ($rule_ref->{$child_rule_name}->{parsing_evaluation})) {
+#use Data::Dumper;
+#print STDERR "adding ".Dumper($parsing_evaluation_hash_ref)."\n";
+    push @parsing_evaluation_hash_stack, $parsing_evaluation_hash_ref;
+    $parsing_evaluation_hash_ref = [$child_rule_name, {}];
+  }
 }
 
-sub count_steps_in_active_nodes {
-  my $self = shift;
-  foreach my $node_name (keys %rules_from_root_to_current) {
-    $steps_in_node{$node_name} +=
-     scalar(@{$rules_from_root_to_current{$node_name}});
+sub complete_matched_node {
+  my $pe_value = shift;
+  shift @{$rules_from_root_to_current{$current_node->{values}->{name}}};
+  $moving_down = 0;
+  $rules_from_root_to_current_count{$current_node->{values}->{name}}--;
+  if ($do_evaluation_in_parsing) {
+    my $alias = $current_node->{values}->{alias};
+    if ($rule->{parsing_evaluation}) {
+      $current_node->{values}->{parsing_evaluation_hash} =
+       $parsing_evaluation_hash_ref;
+      $parsing_evaluation_hash_ref = pop @parsing_evaluation_hash_stack;
+      if (!defined $alias) {$current_node->{values}->{alias} = $alias = ''}
+    }
+    my $pe_rule_name = $parsing_evaluation_hash_ref->[0];
+    if (!defined $pe_rule_name || !defined $alias) {
+      if ($#parsing_evaluation_hash_stack == -1) {
+        $parsing_evaluation_hash_ref->[1]->{''} = $pe_value;
+      }
+    }
+    elsif (!defined $rule_ref->{$pe_rule_name}->{rule_count}->{$alias}) {
+      $parsing_evaluation_hash_ref->[1]->{$alias} = $pe_value;
+    }
+    elsif ($rule_ref->{$pe_rule_name}->{rule_count}->{$alias} > 1) {
+      if (defined $parsing_evaluation_hash_ref->[1]->{$alias}) {
+        push @{$parsing_evaluation_hash_ref->[1]->{$alias}}, $pe_value;
+      }
+      else {
+        $parsing_evaluation_hash_ref->[1]->{$alias} = [$pe_value];
+      }
+    }
+    else {
+      $parsing_evaluation_hash_ref->[1]->{$alias} = $pe_value;
+    }
+  }
+  $current_node = $current_node->parent;
+}
+
+sub cancel_matched_node_evaluation {
+  my $alias = $current_node->{values}->{alias};
+  if (defined $alias) {
+    my $pe_rule_name = $parsing_evaluation_hash_ref->[0];
+    if (defined $pe_rule_name) {
+      if (defined $rule_ref->{$pe_rule_name}->{rule_count}->{$alias} &&
+       ($rule_ref->{$pe_rule_name}->{rule_count}->{$alias} > 1)) {
+        pop @{$parsing_evaluation_hash_ref->[1]->{$alias}};
+      }
+      else {
+        delete $parsing_evaluation_hash_ref->[1]->{$alias};
+      }
+    }
+  }
+  if ($current_node->{values}->{parsing_evaluation_hash}) {
+    push @parsing_evaluation_hash_stack, $parsing_evaluation_hash_ref;
+    $parsing_evaluation_hash_ref =
+     $current_node->{values}->{parsing_evaluation_hash};
+    if (defined $rule->{parsing_unevaluation}) {
+      &{$rule->{parsing_unevaluation}}($parsing_evaluation_hash_ref->[1]);
+    }
   }
 }
 
@@ -501,8 +619,12 @@ sub handle_and_rule_type {
       $parameters->{blocked} = 0;
       $moving_forward = 0;
       $moving_down = 0;
+      #Make subroutine of lines below til remove_node_from_parent....?
       shift @{$rules_from_root_to_current{$current_node->{values}->{name}}};
       $rules_from_root_to_current_count{$current_node->{values}->{name}}--;
+      if ($rule->{parsing_evaluation}) {
+        $parsing_evaluation_hash_ref = pop @parsing_evaluation_hash_stack;
+      }
       $current_node = $current_node->remove_node_from_parent;
     }
     elsif ($next_rule_name = $node_list->[$next_and_child]) {
@@ -510,33 +632,40 @@ sub handle_and_rule_type {
        create_child($next_rule_name, $rule->{alias_list}->[$next_and_child]);
     }
     else {
-      $moving_down = 0;
-      $current_node->{values}->{'beyond'} = 1;
-      my $first_value = $current_node->values->{new_value_when_entered};
-      my $step_name = $current_node->values->{steps};
-      if (!exists $parameters->{moved_beyond}->{$current_node_name}) {
-        $parameters->{moved_beyond}->{$current_node_name} = {};
+      my ($pe_value, $reject) = (undef, 0);
+      if ($rule->{parsing_evaluation}) {
+        ($pe_value, $reject) =
+         &{$rule->{parsing_evaluation}}($parsing_evaluation_hash_ref->[1]);
       }
-      $parameters->{moved_beyond}->{$current_node_name}->{$first_value} = 1;
-      my $current_value = &$increasing_value($object_being_parsed);
-      if ($ventured_out_on{$step_name}{$current_value}++) {
-        $moving_down = 1;
+      if (defined $reject && $reject) {
         $moving_forward = 0;
       }
-      else {
-        if (exists $rule->{on_match}) {
-          &{$rule->{on_match}}($object_being_parsed, $match_hash);
+      else { # !$reject
+#parse_evaluation
+        $current_node->{values}->{'beyond'} = 1;
+        my $first_value = $current_node->values->{new_value_when_entered};
+        my $step_name = $current_node->values->{steps};
+        if (!exists $parameters->{moved_beyond}->{$current_node_name}) {
+          $parameters->{moved_beyond}->{$current_node_name} = {};
         }
-        shift @{$rules_from_root_to_current{$current_node->{values}->{name}}};
-        $rules_from_root_to_current_count{$current_node->{values}->{name}}--;
-        $current_node = $current_node->parent;
+        $parameters->{moved_beyond}->{$current_node_name}->{$first_value} = 1;
+        my $current_value = &$increasing_value($object_being_parsed);
+        if ($ventured_out_on{$step_name}{$current_value}++) {
+          $moving_down = 1;
+          $moving_forward = 0;
+        }
+        else {
+          complete_matched_node($pe_value);
+        }
       }
     }
   }
   else { #if (!$moving_forward)
     my $last_and_child = $#{$current_node->{children}};
     if ($moving_down) {
-      if (exists $rule->{on_unmatch}) {&{$rule->{on_unmatch}}($match_hash)};
+      if ($self->{do_evaluation_in_parsing}) {
+        cancel_matched_node_evaluation;
+      }
       $current_node->{values}->{'beyond'} = 0;
       $current_node = $current_node->{children}->[$last_and_child];
       unshift @{$rules_from_root_to_current{$current_node->{values}->{name}}},
@@ -552,6 +681,9 @@ sub handle_and_rule_type {
         }
         shift @{$rules_from_root_to_current{$current_node->{values}->{name}}};
         $rules_from_root_to_current_count{$current_node->{values}->{name}}--;
+        if ($rule->{parsing_evaluation}) {
+          $parsing_evaluation_hash_ref = pop @parsing_evaluation_hash_stack;
+        }
         $current_node = $current_node->remove_node_from_parent;
       } # $last_and_child == -1
       else {
@@ -574,7 +706,9 @@ sub handle_or_rule_type {
   my $current_position = $current_node->{values}->{position};
   if ( $moving_forward==0 ) {
     if ($moving_down) {
-      if (exists $rule->{on_unmatch}) {&{$rule->{on_unmatch}}($match_hash)};
+      if ($self->{do_evaluation_in_parsing}) {
+        cancel_matched_node_evaluation;
+      }
       $current_node->{values}->{'beyond'} = 0;
       $current_node = $current_node->{children}->[0];
       $rules_from_root_to_current_count{$current_node->{values}->{name}}++;
@@ -598,21 +732,34 @@ sub handle_or_rule_type {
       $moving_down = 0;
       shift @{$rules_from_root_to_current{$current_node->{values}->{name}}};
       $rules_from_root_to_current_count{$current_node->{values}->{name}}--;
+      if ($rule->{parsing_evaluation}) {
+        $parsing_evaluation_hash_ref = pop @parsing_evaluation_hash_stack;
+      }
       $current_node = $current_node->remove_node_from_parent;
     }
     elsif ($current_node->{children}->[0]) { #moving_down == 0
-      $current_node->{values}->{'beyond'} = 1;
-      my $first_value = $current_node->values->{new_value_when_entered};
-      $parameters->{moved_beyond}->{$current_node_name}->{$first_value} = 1;
-      shift @{$rules_from_root_to_current{$current_node->{values}->{name}}};
-      $rules_from_root_to_current_count{$current_node->{values}->{name}}--;
-      if (exists $rule->{on_match}) {
-        &{$rule->{on_match}}($object_being_parsed, $match_hash);
+      my ($pe_value, $reject) = (undef, 0);
+      if ($rule->{parsing_evaluation}) {
+        ($pe_value, $reject) =
+         &{$rule->{parsing_evaluation}}($parsing_evaluation_hash_ref->[1]);
       }
-      $current_node = $current_node->parent;
+      if (defined $reject && $reject) {
+        $moving_down = 1;
+        $moving_forward = 0;
+        $current_node = $current_node->{children}->[0];
+        $rules_from_root_to_current_count{$current_node->{values}->{name}}++;
+        unshift @{$rules_from_root_to_current{$current_node->{values}->{name}}},
+         $current_node;
+      }
+      else { # !$reject
+        $current_node->{values}->{'beyond'} = 1;
+        my $first_value = $current_node->values->{new_value_when_entered};
+        $parameters->{moved_beyond}->{$current_node_name}->{$first_value} = 1;
+        complete_matched_node($pe_value);
+      }
     }
     elsif ($node_list->[$current_position]) {
-      $moving_down = 1;
+      $moving_down = 1; #unneeded?
       create_child($node_list->[$current_position],
        $rule->{alias_list}->[$current_position]);
     }
@@ -632,6 +779,9 @@ sub handle_or_rule_type {
       }
       shift @{$rules_from_root_to_current{$current_node->{values}->{name}}};
       $rules_from_root_to_current_count{$current_node->{values}->{name}}--;
+      if ($rule->{parsing_evaluation}) {
+        $parsing_evaluation_hash_ref = pop @parsing_evaluation_hash_stack;
+      }
       $current_node = $current_node->remove_node_from_parent;
     }
   }
@@ -715,24 +865,86 @@ sub handle_leaf_rule_type {
     my $value_when_entered = &$increasing_value($object_being_parsed);
     ($moving_forward,$value_to_store) =
      &$leaf_parse_forward(\$object_being_parsed, $rule);
+#print STDERR "vts $value_to_store mf $moving_forward\n";
+#use Data::Dumper;
+#print STDERR "cnleaf $current_node_name ".Dumper($value_to_store)."\n";
     if ($value_when_entered > &$increasing_value($object_being_parsed)) {
       croak ("Moving forward on leaf $current_node_name resulted in".
        " backwards progress");
     }
     $current_node->values->{'parse_match'} = $value_to_store;
+#print STDERR "cnvpm '".$current_node->values->{'parse_match'}."'\n";
   }
   else {
     &$leaf_parse_backtrack(\$object_being_parsed,
      $current_node->values->{'parse_match'});
+    if ($self->{do_evaluation_in_parsing}) {
+      my $alias = $current_node->{values}->{alias};
+      if (defined $alias) {
+        my $pe_rule_name = $parsing_evaluation_hash_ref->[0];
+        if (defined $pe_rule_name) {
+          if (defined $rule_ref->{$pe_rule_name}->{rule_count}->{$alias} &&
+           ($rule_ref->{$pe_rule_name}->{rule_count}->{$alias} > 1)) {
+            pop @{$parsing_evaluation_hash_ref->[1]->{$alias}};
+          }
+          else {
+            delete $parsing_evaluation_hash_ref->[1]->{$alias};
+          }
+        }
+      }
+      if (defined $rule->{parsing_unevaluation}) {
+        &{$rule->{parsing_unevaluation}}
+         ($current_node->values->{'parse_match'});
+      }
+    }
   }
   if ($moving_forward) {
-    if (exists $rule->{on_match}) {
-      &{$rule->{on_match}}($object_being_parsed, $match_hash, $value_to_store);
+    my ($pe_value, $reject) = ($value_to_store, 0);
+    if ($rule->{parsing_evaluation}) {
+      ($pe_value, $reject) =
+       &{$rule->{parsing_evaluation}}($value_to_store);
     }
-    $current_node = $current_node->parent;
+#print STDERR "pe $pe_value reject $reject\n";
+    if (!(defined $reject) || !$reject) {
+      if ($self->{do_evaluation_in_parsing}) {
+#print STDERR "working on $current_node_name vts: $value_to_store with $pe_value\n";
+        my $pe_rule_name = $parsing_evaluation_hash_ref->[0];
+        my $alias = $current_node->{values}->{alias};
+        if (!defined $alias) {
+          $current_node->{values}->{alias} = $alias = '';
+        }
+        if (!defined $pe_rule_name) {
+#print STDERR "no prn or no alias\n";
+          if ($#parsing_evaluation_hash_stack == -1) {
+#print STDERR "set pev with $pe_rule_name\n";
+            $parsing_evaluation_hash_ref->[1]->{''} = $pe_value;
+          }
+        }
+        elsif (!defined $rule_ref->{$pe_rule_name}->{rule_count}->{$alias}) {
+          $parsing_evaluation_hash_ref->[1]->{$alias} = $pe_value;
+        }
+        elsif ($rule_ref->{$pe_rule_name}->{rule_count}->{$alias} > 1) {
+          if (defined $parsing_evaluation_hash_ref->[1]->{$alias}) {
+            push @{$parsing_evaluation_hash_ref->[1]->{$alias}}, $pe_value;
+          }
+          else {
+            $parsing_evaluation_hash_ref->[1]->{$alias} = [$pe_value];
+          }
+        }
+        else {
+          $parsing_evaluation_hash_ref->[1]->{$alias} = $pe_value;
+        }
+      }
+      $current_node = $current_node->parent;
+    }
+    else {
+      &$leaf_parse_backtrack(\$object_being_parsed,
+       $current_node->values->{'parse_match'});
+      $moving_forward = 0;
+      $current_node = $current_node->remove_node_from_parent;
+    }
   }
   else {
-    if (exists $rule->{on_unmatch}) {&{$rule->{on_unmatch}}($match_hash)};
     $current_node = $current_node->remove_node_from_parent;
   }
   $moving_down = 0;
@@ -751,8 +963,11 @@ sub handle_multiple_rule_type {
     $max_to_use = $rule->{maximum};
   }
   my $min_to_use = 0;
-  if (defined $rule->{mininum}) {
-    $min_to_use = $rule->{mininum} || 0;
+#use Data::Dumper;
+#print STDERR "rule is ".Dumper($rule)."\n";
+  if (defined $rule->{minimum}) {
+    $min_to_use = $rule->{minimum} || 0;
+#print STDERR "min to use set to $min_to_use\n";
   }
   if ($moving_forward) {
     if ($next_multi_child == 0) {
@@ -775,19 +990,28 @@ sub handle_multiple_rule_type {
       }
     }
     if ($max_to_use && $max_to_use==$next_multi_child) {
-      if (!($current_node->{values}->{'beyond'})) {
-        $current_node->{values}->{'beyond'} = 1;
-        my $first_value = $current_node->values->{new_value_when_entered};
-        $parameters->{moved_beyond}->{$current_node_name}->{$first_value} = 1;
-        $parameters->{maximum}->{$current_node_name}->{$first_value} =
-         $next_multi_child;
+      my ($pe_value, $reject) = (undef, 0);
+      if ($rule->{parsing_evaluation}) {
+        ($pe_value, $reject) =
+         &{$rule->{parsing_evaluation}}($parsing_evaluation_hash_ref->[1]);
       }
-      $moving_down = 0;
-      shift @{$rules_from_root_to_current{$current_node->{values}->{name}}};
-      $rules_from_root_to_current_count{$current_node->{values}->{name}}--;
-      $current_node = $current_node->parent;
-      if (exists $rule->{on_match}) {
-        &{$rule->{on_match}}($object_being_parsed, $match_hash);
+      if (!(defined $reject) || !$reject) {
+        if (!($current_node->{values}->{'beyond'})) {
+          $current_node->{values}->{'beyond'} = 1;
+          my $first_value = $current_node->values->{new_value_when_entered};
+          $parameters->{moved_beyond}->{$current_node_name}->{$first_value} = 1;
+          $parameters->{maximum}->{$current_node_name}->{$first_value} =
+           $next_multi_child;
+        }
+        complete_matched_node($pe_value);
+      }
+      else { # $reject
+        $moving_down = 1;
+        $moving_forward = 0;
+        $current_node = $current_node->{children}->[$next_multi_child-1];
+        $rules_from_root_to_current_count{$current_node->{values}->{name}}++;
+        unshift @{$rules_from_root_to_current{$current_node->{values}->{name}}},
+         $current_node;
       }
     }
     else {
@@ -798,14 +1022,19 @@ sub handle_multiple_rule_type {
   }
   else { # $moving_forward == 0
     if ($moving_down) {
-      if (exists $rule->{on_unmatch}) {&{$rule->{on_unmatch}}($match_hash)};
       if (!$next_multi_child) {
         shift @{$rules_from_root_to_current{$current_node->{values}->{name}}};
         $rules_from_root_to_current_count{$current_node->{values}->{name}}--;
+        if ($rule->{parsing_evaluation}) {
+          $parsing_evaluation_hash_ref = pop @parsing_evaluation_hash_stack;
+        }
         $current_node = $current_node->remove_node_from_parent;
         $moving_down = 0;
       }
       else {
+        if ($self->{do_evaluation_in_parsing}) {
+          cancel_matched_node_evaluation;
+        }
         $current_node = $current_node->{children}->[$next_multi_child-1];
         unshift @{$rules_from_root_to_current{$current_node->{values}->{name}}},
          $current_node;
@@ -823,6 +1052,9 @@ sub handle_multiple_rule_type {
           shift
            @{$rules_from_root_to_current{$current_node->{values}->{name}}};
           $rules_from_root_to_current_count{$current_node->{values}->{name}}--;
+          if ($rule->{parsing_evaluation}) {
+            $parsing_evaluation_hash_ref = pop @parsing_evaluation_hash_stack;
+          }
           $current_node = $current_node->remove_node_from_parent;
         }
         else {
@@ -835,20 +1067,31 @@ sub handle_multiple_rule_type {
         }
       } # $current_position>=$min_to_use
       else {
-        $moving_forward = 1;
-        if (!($current_node->{values}->{'beyond'})) {
-          $current_node->{values}->{'beyond'} = 1;
-          my $first_value = $current_node->values->{new_value_when_entered};
-          $parameters->{moved_beyond}->{$current_node_name}->{$first_value}
-           = 1;
-          $parameters->{maximum}->{$current_node_name}->{$first_value} =
-           $next_multi_child;
+        my ($pe_value, $reject) = (undef, 0);
+        if ($rule->{parsing_evaluation}) {
+          ($pe_value, $reject) =
+           &{$rule->{parsing_evaluation}}($parsing_evaluation_hash_ref->[1]);
         }
-        shift @{$rules_from_root_to_current{$current_node->{values}->{name}}};
-        $rules_from_root_to_current_count{$current_node->{values}->{name}}--;
-        $current_node = $current_node->parent;
-        if (exists $rule->{on_match}) {
-          &{$rule->{on_match}}($object_being_parsed, $match_hash);
+        if (!(defined $reject) || !$reject) {
+          $moving_forward = 1;
+          if (!($current_node->{values}->{'beyond'})) {
+            $current_node->{values}->{'beyond'} = 1;
+            my $first_value = $current_node->values->{new_value_when_entered};
+            $parameters->{moved_beyond}->{$current_node_name}->{$first_value}
+             = 1;
+            $parameters->{maximum}->{$current_node_name}->{$first_value} =
+             $next_multi_child;
+          }
+          complete_matched_node($pe_value);
+        }
+        else { # $reject
+          $moving_down = 1;
+          $moving_forward = 0; #not needed?
+          $current_node = $current_node->{children}->[$next_multi_child-1];
+          $rules_from_root_to_current_count{$current_node->{values}->{name}}++;
+          unshift
+           @{$rules_from_root_to_current{$current_node->{values}->{name}}},
+           $current_node;
         }
       }
     }
@@ -882,6 +1125,7 @@ sub add_rule {
   my $self = shift;
   my $rule = shift;
   my $rule_name = $rule->{rule_name};
+#print STDERR "adding rule $rule_name\n";
   if ($rule_name eq '') {
     croak ("Rule name cannot be empty");
   }
@@ -948,7 +1192,7 @@ sub add_rule {
       $rule_type = 'scan_leaf';
     }
   }
-  if (defined $rule->{optional} || $rule->{p}) {
+  if (defined $rule->{optional} || $rule->{zero_or_one} || $rule->{z}) {
     if ($rule_type) {
       if ($rule_type ne 'multiple') {
         croak("Mismatch optional rule type $rule_type for rule $rule_name");
@@ -967,15 +1211,11 @@ sub add_rule {
 
   $self->{rule}->{$rule_name}->{evaluation} =
    $rule->{evaluation} || $rule->{e};
+  if ($self->{do_evaluation_in_parsing}) {
+    $self->{rule}->{$rule_name}->{parsing_evaluation} =
+     $self->{rule}->{$rule_name}->{evaluation};
+  }
   $self->{rule}->{$rule_name}->{rule_type} = $rule_type;
-  my $on_match = $rule->{on_match};
-  if (ref $on_match eq 'CODE') {
-    $self->{rule}->{$rule_name}->{on_match} = $on_match;
-  }
-  my $on_unmatch = $rule->{on_unmatch};
-  if (ref $on_unmatch eq 'CODE') {
-    $self->{rule}->{$rule_name}->{on_unmatch} = $on_unmatch;
-  }
   if ($rule_type eq 'or') {
     my $any_one_of = $rule->{any_one_of} || $rule->{or} || $rule->{o};
     if (defined $any_one_of) {
@@ -990,6 +1230,9 @@ sub add_rule {
           $rule_name_or_rule = $rule_name_or_rule->[0];
         }
         if (ref $rule_name_or_rule eq 'HASH') {
+          if (exists $rule_name_or_rule->{alias}) {
+            $alias = $rule_name_or_rule->{alias};
+          }
           if (!exists $rule_name_or_rule->{rule_name}) {
             $rule_name_or_rule->{rule_name} =
              $rule_name.'__XZ__'.$unique_name_counter++;
@@ -1304,14 +1547,27 @@ sub new_generic_routine {
   return $parameters;
 }
 
+sub nothing_routine {
+}
+
 sub generate_evaluate_subroutines {
   my $self = shift;
   my $parameters = shift;
   foreach my $rule (keys %{$self->{rule}}) {
-    if (!$self->{rule}->{$rule}->{evaluation}
-      && !$self->{rule}->{$rule}->{generated}
-    ) {
-      $self->{rule}->{$rule}->{evaluation} = \&new_generic_routine;
+    if (!$self->{rule}->{$rule}->{generated} ||
+     $self->{rule}->{$rule}->{evaluation}) {
+      if (!$self->{rule}->{$rule}->{evaluation}) {
+        $self->{rule}->{$rule}->{evaluation} = \&new_generic_routine;
+      }
+      if ($self->{do_evaluation_in_parsing}) {
+        if (!$self->{rule}->{$rule}->{parsing_evaluation}) {
+          $self->{rule}->{$rule}->{parsing_evaluation} =
+           \&new_generic_routine;
+        }
+        if (!$self->{rule}->{$rule}->{parsing_unevaluation}) {
+          $self->{rule}->{$rule}->{parsing_unevaluation} = \&nothing_routine;
+        }
+      }
     }
   }
 }
@@ -1377,6 +1633,9 @@ sub which_parameters_are_arrays {
 sub do_tree_evaluation {
   my $self = shift;
   my $parameters = shift;
+  if (exists $self->{results}->{parsing_evaluation}) {
+   return $self->{results}->{parsing_evaluation}};
+#print STDERR "doing tree evaluation\n";
   my $tree = $parameters->{tree};
   my $rules_details = $self->{rule};
   my $result;
@@ -1390,6 +1649,7 @@ sub do_tree_evaluation {
       my $parameters;
       if (($rule_type eq 'leaf') || ($rule_type eq 'scan_leaf')) {
         $parameters = $node->{values}->{pvalue};
+#print STDERR "leaf pvalue is '$parameters'\n";
       }
       else {
         $parameters = $node->{child_values};
@@ -1411,7 +1671,7 @@ sub do_tree_evaluation {
           }
         }
       }
-      $result = &$subroutine_to_run($parameters);
+      ($result) = &$subroutine_to_run($parameters);
 #print STDERR "rule result is $result\n";
       my $parent = $node->parent;
       my $parent_name = undef;
@@ -1424,13 +1684,15 @@ sub do_tree_evaluation {
         }
       }
       $node->{values}->{computed_value} = $result;
-      if (defined $parent) {
-        if ((defined $alias) &&
-         ($rules_details->{$parent_name}->{rule_count}->{$alias} > 1)) {
+      if (defined $parent_name) {
+        if (!defined $alias) {$alias = ''};
+        if (!defined $rules_details->{$parent_name}->{rule_count}->{$alias}) {
+          $parent->{child_values}->{$alias} = $result;
+        }
+        elsif ($rules_details->{$parent_name}->{rule_count}->{$alias} > 1) {
           push @{$parent->{child_values}->{$alias}}, $result;
         }
         else {
-          if (!defined $alias) {$alias = ''};
           #push @{$parent->{child_values}->{$alias}}, $result;
           $parent->{child_values}->{$alias} = $result;
         }
@@ -1469,6 +1731,9 @@ sub set_handle_object {
   if (defined $parameters->{increasing_value_function}) {
     $increasing_value = $parameters->{increasing_value_function};
   }
+  if (defined $parameters->{display_value_function}) {
+    $display_value = $parameters->{display_value_function};
+  }
 }
 
 1;
@@ -1488,10 +1753,15 @@ Parse::Stallion - Perl backtracking parser and resultant tree evaluator
 
   my $stallion = new Parse::Stallion({
     rules_to_set_up_hash => \%rules,
-    start_rule => 'rule_name_1'
+    start_rule => 'rule_name_1',
+    do_evaluation_in_parsing => 0, #default is 0
+    croak_on_failing => 1, #default is 0
+    keep_white_space => 1, #default is 0
   });
 
-  my $result = eval {$stallion->parse_and_evaluate({parse_this=>$given_string})};
+  my $result =
+   eval {$stallion->parse_and_evaluate({parse_this=>$given_string})};
+
   if ($@) {
     if ($stallion->parse_failed) {#parse failed};
   }
@@ -1513,11 +1783,17 @@ The parsing is done top-down via an initial start rule,
 in a depth first search.
 When a rule does not match the parser backtracks to a node that has another
 option.
+
 If successfully parsed, the tree may then be evaluated in bottom up,
 left to right order,
 by calling each tree node's rule's subroutine.
 The subroutine is given one parameter: a reference to a hash representing
 the returned values of the named sub-nodes.
+
+The evaluation subroutine for each node may be done
+while creating the parse tree and reject a match.
+This allows complex grammars, with the caveat that backtracking needs
+to be taken into account.
 
 Some familiarity is assumed with parsing, the grammars recognized are
 context free and essentially correspond to Extended Backus Normal Form.
@@ -1526,6 +1802,8 @@ The object being parsed does not need to be a string.  Except for
 the section on non-strings, the documentation assumes strings are being parsed.
 
 =head2 COMPLETE EXAMPLES
+
+There is an example directory in addition to the examples presented here.
 
 The following examples read in two unsigned integers and adds them.
 
@@ -1863,28 +2141,18 @@ parsed string is the same when first encountered, the second 'or_rule'
 starts its evaluation at 'b'.  QUESTION: should the parse grammar
 be illegal?
 
-=head3 ON_START, ON_MATCH, ON_UNMATCH
+=head3 PARSE_TRACE
 
-Optionally, there may be a routine when creating a Stallion that,
-when parsing begins,
-is given two paremeters: the object being parsed and a hash, referred
-to as the match hash.
+One of the results returned from the parse function is an array of
+each step performed, returned in {parse_trace}.
+Each array entry is a hash with elements such as the name of the
+rule being parsed, the direction of the trace, the current
+value of the parse object; for a string, that is the position within
+the string.
 
-For each rule, a subroutine 'on_match' may be defined that is called
-whenever the rule is matched, i.e. after the last child of an B<'and'>
-rule.
-The parameters to the 'on_match' subroutine are the current object being
-parsed and the match hash.
-If the rule is a B<'leaf'>, there is a third parameter, the value that
-is stored with the B<'leaf'> node.
-
-Whenever a rule re-occurs during backtracking from its parent, the
-optional subroutine 'on_unmatch' is called with the parameters the
-current object being parsed and the match hash.
-
-See the code in Parse::Stallion::CVSFH for an example of this.
-     
 =head2 EVALUATION
+
+Evaluation can occur during or after parsing.
 
 After parsing, Stallion can evaluate the parse tree
 in a bottom up left to right order traversal.
@@ -1917,6 +2185,102 @@ By nesting a rule with an alias,
 the alias is used for the name of the hash parameter instead of
 the rule name.
 
+=head3 EVALUATION DURING PARSING
+
+If the parameter do_evaluation_in_parsing is set when a Parse::Stallion
+object is created the evalatuion occurs during the parsing instead of
+afterwards.
+
+Every time a node is matched, its evaluation routine is called as
+it would be during evaluation after parsing.  This is possible because
+a node cannot be matched until all of its children are matched.
+
+The evaluation routine may return a second parameter that tells
+Parse::Stallion to reject or not reject the match.  This allows more
+control over what can be parsed.
+
+When backtracking to a matched node, the node's unevaluation routine
+is called.
+
+=head4 EVALUATION DURING PARSING EXAMPLE
+
+The following is an example of a more complicated "grammar" being
+parsed.
+
+The first statement tells a truth about the number of elements in
+a list, the second tells whether or not the first statement is true.
+If the second statement is true, the string parses.
+
+  my %parsing_rules = (
+   start_expression => {
+    and => ['two_statements', {leaf => qr/\z/}],
+    evaluation => sub {return $_[0]->{'two_statements'}},
+   },
+   two_statements => {
+     and=> ['list_statement','truth_statement'],
+     evaluation => sub {
+       if ($_[0]->{list_statement} != $_[0]->{truth_statement}) {
+         return (undef, 1);
+       }
+       return 1;
+     }
+   },
+   list_statement => {
+     and => ['count_statement', 'list'],
+     evaluation => sub {
+       if ($_[0]->{count_statement} == scalar(@{$_[0]->{list}})) {
+         return 1;
+       }
+       return 0;
+     }
+   },
+   count_statement => {
+     and => [{leaf=>qr/there are /i},'number',{l=>qr/ elements in /}],
+     evaluation => sub {
+       return $_[0]->{number};
+     }
+    },
+   number => {
+    leaf=>qr/\d+/,
+     evaluation => sub { return 0 + shift; }
+   },
+   list => {and => ['number', {multiple=>{and=>[{l=>qr/\,/}, 'number']}}],
+    evaluation => sub {return $_[0]->{number}}
+   },
+   truth_statement => {
+     or => [{l=>qr/\. that is the truth\./, alias=>'t'},
+      {l=>qr/\. that is not the truth\./, alias=>'t'}],
+     evaluation => sub {
+       if ($_[0]->{t} =~ /not/) {
+         return 0;
+       }
+       return 1;
+     }
+   },
+  );
+  
+  my $how_many_parser = new Parse::Stallion({
+    do_evaluation_in_parsing => 1,
+    rules_to_set_up_hash => \%parsing_rules,
+    start_rule => 'start_expression',
+  });
+  
+  $result = $how_many_parser->parse_and_evaluate({
+    parse_this=>"there are 5 elements in 5,4,3,2,1. that is the truth."});
+  
+  print "$result should be 1\n";
+  
+  $result = $how_many_parser->parse_and_evaluate({
+    parse_this=>"there are 5 elements in 5,4,3,1. that is not the truth."});
+  
+  print "$result should be 1\n";
+  
+  $result = $how_many_parser->parse_and_evaluate({
+    parse_this=>"there are 5 elements in 5,4,3,1. that is the truth."});
+  
+  print "$result should be undef\n";
+
+
 =head3 DEFAULT EVALUATION ROUTINE
 
 If a rule does not have an evaluation routine specified,
@@ -1939,7 +2303,7 @@ reference is returned.
 
 This is the routine:
 
-  sub new_generic_routine {
+  sub {
     my $parameters = shift;
     if (ref $parameters eq 'HASH') {
       if (keys %$parameters == 1) {
@@ -2181,7 +2545,7 @@ to speed up the search, though not clear if this is really need.
 
 Parse::Stallion requires Test::More and Time::Local and perl 5.6 or higher.
 This is due to the installation test cases and the way the
- makefile is set up.  Should
+ makefile is set up.  Parse::Stallion should
 work with earlier versions of perl and neither of those modules is
 really required.
 
@@ -2189,13 +2553,40 @@ The test cases that come with the module include some interesting
 code, such as parsing dates and compiling/running a program.  Should expand
 these out into an examples directory.
 
-Are scan_array's so important as to warrant a separate parameter?
+Are scan_array's so important as to warrant a separate parameter?  Are
+they important enough to be part of the module?
+
+Should multiple rules be matched in a lazy method in addition to
+the currently implemented greedy method?  If assuming only one match
+this doesn't matter but there may be other cases.
+
+Is it desirable to shrink the notation used to express rules more akin
+to perl regex'es?  I.e.: have array references always be and nodes,
+ hashes be or's, have an * next to a field refer to multiple, ....
+
+Should it be easy to automate parsing repeatedly (similar to the
+g option in regex's)?  Should other "functionalities" of regex's
+be incorporated, i.e. substitutions, matching into $1, $2, ...
+
+In evaluating nodes, should there be other parameters?  Such as
+the position in the string being parsed.
+
+Have some evaluations/subroutines done during the parsing but
+do the majority of them aferwards?  This would allow fewer subroutines
+to be called.  An example would be to have a routine that verifies
+that a leaf is a correct value, similar to the current regex_not_match,
+but not have the tree parsed until afterwards.
+
+What should the default behavior on white space be around leaves?
 
 =head1 SEE ALSO
 
 Look up Extended Backus-Naur Form notation and trace back from there.
 
-Parse::Stallion::CSV, another example of how to use Parse::Stallion.
+Parse::Stallion::CSV and Parse::Stallion::CSVFH, examples
+ of how to use Parse::Stallion.
+
+Perl 6 grammars.
 
 Please send suggestions.
 What comes to mind is lex, yacc, Parse::RecDescent, ..., other parsers.

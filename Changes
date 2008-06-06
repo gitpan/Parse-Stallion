@@ -1,5 +1,22 @@
 Revision history for Perl extension Parse::Stallion.
 
+0.01
+     evaluation can now occur during parsing, replacing
+     on_start, on_match, and on_unmatch
+
+     example directory
+
+     parse returns trace of each step
+
+     optional rule one letter abbreviation changed from p to z
+     optional rule also allows naming of zero_or_one
+
+     mutliple rules' minimum handling fixed
+
+     fixed CSV.pm to handle white space
+
+     not croak when a parse fails
+
 0.009  Multiple rules can now have named-subrules when defining
        them.  Demonstrated in Parse::Stallion::CSV.
        Minor changes to the documentation.

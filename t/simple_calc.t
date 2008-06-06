@@ -7,13 +7,17 @@ my %calculator_rules = (
  start_expression => {
    rule_type => 'and',
    composed_of => ['expression', {regex_match => qr/\z/}],
-   evaluation => sub {return $_[0]->{expression}},
+   e => sub {
+#print STDERR "final expression is ".$_[0]->{expression}."\n";
+return $_[0]->{expression}},
   },
  expression => {
    rule_type => 'and',
    composed_of => ['term', 
     {repeating => {composed_of => ['plus_or_minus', 'term'],},},],
-   evaluation => sub {my $to_combine = $_[0]->{term};
+   e => sub {my $to_combine = $_[0]->{term};
+#use Data::Dumper;
+#print STDERR "p and e params are ".Dumper(\@_);
     my $plus_or_minus = $_[0]->{plus_or_minus};
     my $value = shift @$to_combine;
     for my $i (0..$#{$to_combine}) {
@@ -30,7 +34,7 @@ my %calculator_rules = (
  term => {
    composed_of => ['number', 
     {repeating => {composed_of => ['times_or_divide', 'number']}}],
-   evaluation => sub {my $to_combine = $_[0]->{number};
+   e => sub {my $to_combine = $_[0]->{number};
     my $times_or_divide = $_[0]->{times_or_divide};
     my $value = shift @$to_combine;
     for my $i (0..$#{$to_combine}) {
@@ -47,7 +51,7 @@ my %calculator_rules = (
  number => {
    rule_type => 'leaf',
    regex_match => qr/\s*[+\-]?(\d+(\.\d*)?|\.\d+)\s*/,
-   evaluation => sub{ return 0 + $_[0]; }
+   e => sub{ return 0 + $_[0]; }
  },
  plus_or_minus => {
    rule_type => 'leaf',
@@ -59,29 +63,34 @@ my %calculator_rules = (
  },
 );
 
-my $calculator_parser = new Parse::Stallion();
+my $calculator_parser = new Parse::Stallion({
+  do_evaluation_in_parsing => 1});
 $calculator_parser->set_up_full_rule_set({
   rules_to_set_up_hash => \%calculator_rules,
   start_rule => 'start_expression',});
 
 my $result =
  $calculator_parser->parse({parse_this=>"7+4"});
-my $parsed_tree = $result->{tree};
-$result = $calculator_parser->do_tree_evaluation({tree=>$parsed_tree});
+$result = $result->{parsing_evaluation};
+#my $parsed_tree = $result->{tree};
+#$result = $calculator_parser->do_tree_evaluation({tree=>$parsed_tree});
 #print "Result is $result\n";
 is ($result, 11, "simple plus");
 
 $result =
  $calculator_parser->parse({parse_this=>"7*4"});
-$parsed_tree = $result->{tree};
-$result = $calculator_parser->do_tree_evaluation({tree=>$parsed_tree});
+$result = $result->{parsing_evaluation};
+#$parsed_tree = $result->{tree};
+#$result = $calculator_parser->do_tree_evaluation({tree=>$parsed_tree});
 #print "Result is $result\n";
 is ($result, 28, "simple multiply");
 
 $result =
  $calculator_parser->parse({parse_this=>"3+7*4"});
-$parsed_tree = $result->{tree};
-$result = $calculator_parser->do_tree_evaluation({tree=>$parsed_tree});
+$result = $result->{parsing_evaluation};
+#$parsed_tree = $result->{tree};
+#print STDERR "3+7*4 pe ".$result->{parsing_evaluation}."\n";
+#$result = $calculator_parser->do_tree_evaluation({tree=>$parsed_tree});
 #print "Result is $result\n";
 is ($result, 31, "simple plus and multiply");
 

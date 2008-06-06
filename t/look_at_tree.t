@@ -1,6 +1,7 @@
 #!/usr/bin/perl
 #Copyright 2007 Arthur S Goldstein
 use Test::More tests => 6;
+#use Data::Dumper;
 BEGIN { use_ok('Parse::Stallion') };
 
 my %calculator_rules = (
@@ -67,6 +68,7 @@ $calculator_parser->set_up_full_rule_set({
 my $result =
  $calculator_parser->parse({parse_this=>"7+4"});
 my $parsed_tree = $result->{tree};
+#print STDERR "pt is ".Dumper($parsed_tree)."\n";
 $result = $calculator_parser->do_tree_evaluation({tree=>$parsed_tree});
 #print "Result is $result\n";
 is ($result, 11, "simple plus");

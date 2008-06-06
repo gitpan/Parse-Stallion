@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #Copyright 2007-8 Arthur S Goldstein
-use Test::More tests => 6;
+use Test::More tests => 7;
 BEGIN { use_ok('Parse::Stallion::CSV') };
 BEGIN { use_ok('Parse::Stallion::CSVFH') };
 
@@ -34,23 +34,51 @@ records =>
 }
 , 'parse and evaluate csv');
 
-$result = $csv_stallion->parse_and_evaluate({parse_this=>$file});
 $file =<<EOL;
 "abc sdf, sdf",add,eff
 jff,"slk,lwer,sd
 sdfkl,sdf,sdf,sdf",ke
 lkwer,fsjk,sdf
 EOL
+$result = $csv_stallion->parse_and_evaluate({parse_this=>$file});
+
+is_deeply (
+$result,
+{
+          'records' => [
+                         [
+                           'jff',
+                           'slk,lwer,sd
+sdfkl,sdf,sdf,sdf',
+                           'ke'
+                         ],
+                         [
+                           'lkwer',
+                           'fsjk',
+                           'sdf'
+                         ]
+                       ],
+          'header' => [
+                        'abc sdf, sdf',
+                        'add',
+                        'eff'
+                      ]
+        },
+'split line record');
 
 
 #print STDERR "FH time\n";
 
-my $h_csv_stallion = new Parse::Stallion::CSVFH;
 
 my $file_handle;
 #open $file_handle, "<", "/Users/arthurgoldstein/perl/talon/release/Parse-Stallion/t/bbb";
 open $file_handle, "<", "t/csv.t_1";
-$result = $h_csv_stallion->parse_and_evaluate({parse_this=>$file_handle});
+#my $h_csv_stallion = new Parse::Stallion::CSVFH({file_handle => $file_handle});
+#$result = $h_csv_stallion->read_in_file_handle({file_handle => $file_handle});
+$result = Parse::Stallion::CSVFH::read_in_file_handle(
+ {file_handle => $file_handle});
+#use Data::Dumper;
+#print STDERR "result is ".Dumper($result)."\n";
 is_deeply($result,
 {
  'records' => [
@@ -75,8 +103,10 @@ sdfkl,sdf,sdf,sdf',
 , 'from a file');
 close $file_handle;
 open $file_handle, "<", "t/csv.t_2";
-eval {$result = $h_csv_stallion->parse_and_evaluate(
-  {parse_this=>$file_handle})};
+#my $h2_csv_stallion = new Parse::Stallion::CSVFH({file_handle => $file_handle});
+#eval {$result = $h2_csv_stallion->parse_and_evaluate};
+eval {$result = Parse::Stallion::CSVFH::read_in_file_handle(
+ {file_handle => $file_handle})};
 like ($@, qr /Row 1 has an error in field count/,'bad field count');
 
   my $input_string = 'header1,header2,header3'."\n";

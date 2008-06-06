@@ -6,6 +6,7 @@ use Carp;
 use strict;
 use warnings;
 use Parse::Stallion;
+#use Data::Dumper;
 
 #Copied somewhat from rfc1480
 # see for reference: http://tools.ietf.org/html/rfc4180
@@ -41,11 +42,12 @@ my %with_header_csv_rules = (
     },
 
    inner_escaped =>{
-     multiple=>{or=>['TEXTDATA','COMMA','CR','LF','DDQUOTE'],
+     multiple=>{or=>['TEXTDATA','COMMA','CRLF','DDQUOTE'],
       rule_name => 'ie_choices'
       },
       evaluation => sub {
         my $param = shift;
+#print "ie params are ".Dumper($param)."\n";
         return join('', @{$param->{'ie_choices'}});
         }
     },
@@ -58,14 +60,21 @@ my %with_header_csv_rules = (
 
    COMMA => {leaf=>qr/\x2C/},
 
-   CR => {leaf=>qr/\x0D/},
+#   CR => {leaf=>qr/\x0D/},
 
    DQUOTE => {leaf=>qr/\x22/},
 
-   LF => {leaf=>qr/\x0A/},
+#   LF => {leaf=>qr/\x0A/},
 
    #CRLF => {and=>['CR','LF']},
-   CRLF => {leaf=>qr/\n/},
+   CRLF => {leaf=>qr/\n/,
+#    evaluation =>
+#     sub {
+#      my $param = shift;
+##      print STDERR "Parsm to crlf are ".Dumper($param)."\n";
+#      return "\n";
+#    }
+   },
 
    TEXTDATA => {leaf=>qr/[\x20-\x21\x23-\x2B\x2D-\x7E]+/,
    },
@@ -76,6 +85,7 @@ sub new {
   my $self = shift;
   my $parameters = shift;
   return  new Parse::Stallion({
+    keep_white_space => 1,
     rules_to_set_up_hash=>\%with_header_csv_rules, start_rule=>'file'});
 }
 
