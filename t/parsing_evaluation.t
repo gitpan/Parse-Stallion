@@ -2,7 +2,7 @@
 #Copyright 2007 Arthur S Goldstein
 use Test::More tests => 18;
 BEGIN { use_ok('Parse::Stallion') };
-use Data::Dumper;
+#use Data::Dumper;
 
 my %parsing_rules = (
  start_expression => {

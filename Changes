@@ -1,5 +1,14 @@
 Revision history for Perl extension Parse::Stallion.
 
+0.02
+     by default white space is not removed from the value passed to
+     a leaf's rule evaluation.  the parameter remove_white_space has
+     been added to handle this.  evaluation during/after parsing
+     was inconsistent before.
+
+     rules_to_set_up_hash parameter now sorted so rules are
+     created in a consistent order.
+
 0.01
      evaluation can now occur during parsing, replacing
      on_start, on_match, and on_unmatch

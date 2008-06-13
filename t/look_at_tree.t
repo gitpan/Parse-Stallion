@@ -60,7 +60,7 @@ my %calculator_rules = (
  },
 );
 
-my $calculator_parser = new Parse::Stallion();
+my $calculator_parser = new Parse::Stallion({remove_white_space => 1});
 $calculator_parser->set_up_full_rule_set({
   rules_to_set_up_hash => \%calculator_rules,
   start_rule => 'start_expression',});

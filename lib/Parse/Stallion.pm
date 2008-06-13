@@ -5,7 +5,7 @@ use Carp;
 use strict;
 use warnings;
 use 5.006;
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 sub new {
   my $type = shift;
@@ -235,7 +235,7 @@ sub new {
   $latest_stallion = $self;
   my ($and_nodes, $or_nodes, $leaf_nodes) = @_;
 
-  $self->{keep_white_space} = $parameters->{keep_white_space};
+  $self->{remove_white_space} = $parameters->{remove_white_space};
   $self->{scanner} = $parameters->{scanner};
   $do_evaluation_in_parsing = $self->{do_evaluation_in_parsing}
    = $parameters->{do_evaluation_in_parsing}
@@ -416,7 +416,7 @@ sub parse {
 #print STDERR "have no pv\n";
       $node->{values}->{pvalue} = '';
     }
-    if ($string_being_parsed_yn && !$self->{keep_white_space}) {
+    if ($string_being_parsed_yn && $self->{remove_white_space}) {
       my $parent = $node->parent;
       if (my $parent = $node->parent) {
         if (exists $parent->{values}->{pvalue}) {
@@ -894,20 +894,25 @@ sub handle_leaf_rule_type {
       }
       if (defined $rule->{parsing_unevaluation}) {
         &{$rule->{parsing_unevaluation}}
-         ($current_node->values->{'parse_match'});
+         ($current_node->values->{'pe_value'});
       }
     }
   }
   if ($moving_forward) {
     my ($pe_value, $reject) = ($value_to_store, 0);
+    if ($string_being_parsed_yn && $self->{remove_white_space}) {
+      $pe_value =~ s/^\s*//s;
+      $pe_value =~ s/\s*$//s;
+    }
     if ($rule->{parsing_evaluation}) {
       ($pe_value, $reject) =
-       &{$rule->{parsing_evaluation}}($value_to_store);
+       &{$rule->{parsing_evaluation}}($pe_value);
     }
 #print STDERR "pe $pe_value reject $reject\n";
     if (!(defined $reject) || !$reject) {
       if ($self->{do_evaluation_in_parsing}) {
 #print STDERR "working on $current_node_name vts: $value_to_store with $pe_value\n";
+        $current_node->values->{'pe_value'} = $pe_value;
         my $pe_rule_name = $parsing_evaluation_hash_ref->[0];
         my $alias = $current_node->{values}->{alias};
         if (!defined $alias) {
@@ -1584,7 +1589,7 @@ sub set_up_full_rule_set {
     $self->add_rule({rule_name => $rule_name, %{$rule->{$rule_name}}},);
   }
 
-  foreach my $rule_name (keys %$rules_to_set_up_hash) {
+  foreach my $rule_name (sort keys %$rules_to_set_up_hash) {
     $self->add_rule({rule_name => $rule_name,
      %{$rules_to_set_up_hash->{$rule_name}}});
   }
@@ -1756,7 +1761,7 @@ Parse::Stallion - Perl backtracking parser and resultant tree evaluator
     start_rule => 'rule_name_1',
     do_evaluation_in_parsing => 0, #default is 0
     croak_on_failing => 1, #default is 0
-    keep_white_space => 1, #default is 0
+    remove_white_space => 1, #default is 0
   });
 
   my $result =
@@ -2167,12 +2172,13 @@ executed during the evaluation, specified by the parameter
 'evaluation' or 'e'.
 
 The parameter to a leaf node's routine
-is the string
-the node matched with beginning and trailing white space removed.
-This removal can be overridden by setting the parameter keep_white_space
-when creating the object:
+is the string the node matched.
+The beginning and trailing white space can be removed before being
+passed to the routine by
+by setting the parameter remove_white_space
+when creating the parser:
 
-  $parser = new Parse::Stallion({keep_white_space => 1});
+  $parser = new Parse::Stallion({remove_white_space => 1});
 
 The parameter to an internal node is a hash consisting
 of named parameters corresponding to the child rules of
@@ -2577,7 +2583,13 @@ to be called.  An example would be to have a routine that verifies
 that a leaf is a correct value, similar to the current regex_not_match,
 but not have the tree parsed until afterwards.
 
-What should the default behavior on white space be around leaves?
+What should the default behavior on white space be around leaves?  Need
+to ensure that evaluations are the same whether they occur
+during or after parsing.
+
+Use abbreviated definitions in test cases/examples/documentation, i.e.
+remove rule_type => '...' as a parameter?.
+
 
 =head1 SEE ALSO
 
