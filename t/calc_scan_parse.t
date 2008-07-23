@@ -251,9 +251,11 @@ my $calculator_parser = new Parse::Stallion({
   scanner => 1,
   start_rule => 'start_expression'});
 
+#my $th;
+#open $th, ">&", \*STDERR;
 $result =
  $calculator_parser->parse({scan_array=>\@results_array,
-  trace => 0});
+  trace_fh => 0});
 
 $result =
  $calculator_parser->parse_and_evaluate({scan_array=>\@results_array});

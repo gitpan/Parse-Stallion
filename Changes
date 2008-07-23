@@ -1,5 +1,16 @@
 Revision history for Perl extension Parse::Stallion.
 
+0.03
+     allowed 'eval' to be an abbreviation for 'evaluation'
+
+     multiple rule now has option match_min_first
+
+     fixed error in case of parsing during evaluation, if multiple
+     rule fails with no children.
+
+     allow more than one parser at a time, notably when
+     evaluating during parsing is on, the code can call another parser
+
 0.02
      by default white space is not removed from the value passed to
      a leaf's rule evaluation.  the parameter remove_white_space has

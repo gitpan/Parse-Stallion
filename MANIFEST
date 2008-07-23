@@ -19,10 +19,13 @@ t/date_parsing.t
 t/date_with_no_end_string.t
 t/date_with_no_end_string_dpie.t
 t/empty.t
+t/event.t
 t/how_many.t
 t/how_many_no_alias.t
 t/look_at_tree.t
+t/min_multiple.t
 t/object_string.t
+t/parser_within_parser.t
 t/parsing_evaluation.t
 t/program.t
 t/simp.t

@@ -23,6 +23,7 @@ This module requires these other modules and libraries:
 
   Test::More
   Time::Local
+  File::Spec
 
 COPYRIGHT AND LICENCE
 

@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #Copyright 2007 Arthur S Goldstein
-use Test::More tests => 18;
+use Test::More tests => 19;
 BEGIN { use_ok('Parse::Stallion') };
 #use Data::Dumper;
 
@@ -263,6 +263,37 @@ is_deeply
           ''
         ],
 'trace');
+
+my %multi_test_rules = (
+ start_expression => {
+  and => ['parse_expression', 'chars', {leaf => qr/\z/}]
+ },
+
+ parse_expression => {
+   multiple => 'somerepeat',
+   e => sub {return (undef, 1)}
+ },
+
+ somerepeat => {
+   l => qr/./s
+ },
+
+ chars => {
+   l => qr/.*/s
+ },
+
+);
+
+my $multi_test_parser = new Parse::Stallion({
+  do_evaluation_in_parsing => 1,
+  rules_to_set_up_hash => \%multi_test_rules,
+  start_rule => 'start_expression',
+});
+
+$result = $multi_test_parser->parse({parse_this=>"a,bc middle de,f"});
+
+#use Data::Dumper; print STDERR Dumper($result)."\n";
+is ($result->{parse_succeeded}, 0, 'Always fail multiple rule');
 
 print "\nAll done\n";
 
