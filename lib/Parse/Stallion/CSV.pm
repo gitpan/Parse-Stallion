@@ -86,6 +86,7 @@ sub new {
   my $parameters = shift;
   return  new Parse::Stallion({
     keep_white_space => 1,
+    backtrack_can_change_value => 1,
     rules_to_set_up_hash=>\%with_header_csv_rules, start_rule=>'file'});
 }
 

@@ -75,10 +75,12 @@ my $file_handle;
 open $file_handle, "<", "t/csv.t_1";
 #my $h_csv_stallion = new Parse::Stallion::CSVFH({file_handle => $file_handle});
 #$result = $h_csv_stallion->read_in_file_handle({file_handle => $file_handle});
+#print STDERR "hhi\n";
 $result = Parse::Stallion::CSVFH::read_in_file_handle(
  {file_handle => $file_handle});
 #use Data::Dumper;
 #print STDERR "result is ".Dumper($result)."\n";
+#print STDERR "hhj\n";
 is_deeply($result,
 {
  'records' => [

@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-#Copyright 2007 Arthur S Goldstein
+#Copyright 2007-8 Arthur S Goldstein
 use Test::More tests => 6;
 BEGIN { use_ok('Parse::Stallion') };
 #use Data::Dumper;
@@ -31,6 +31,7 @@ my %parsing_rules = (
  count_statement => {
    and => [{leaf=>qr/there are /i},'number',{l=>qr/ elements in /}],
    evaluation => sub {
+     #use Data::Dumper; print STDERR "csinput is ".Dumper(\@_)."\n";
      return $_[0]->{number};
    }
   },
@@ -38,15 +39,16 @@ my %parsing_rules = (
   leaf=>qr/\d+/,
    evaluation => sub { return 0 + shift; }
  },
- list => {and => ['number', {multiple=>{and=>[{l=>qr/\,/}, 'number']}}],
-  evaluation => sub {return $_[0]->{number}}
+ list => {and => ['number', {multiple=>[{and=>[{l=>qr/\,/}, 'number']}]}],
+  evaluation => sub {
+     #use Data::Dumper; print STDERR "listinput is ".Dumper(\@_)."\n";
+   return $_[0]->{number}}
  },
  truth_statement => {
    or => [{l=>qr/\. that is the truth\./, alias=>'t'},
     {l=>qr/\. that is not the truth\./, alias=>'t'}],
    evaluation => sub {
-     #use Data::Dumper;
-     #print STDERR "input is ".Dumper(\@_)."\n";
+     #use Data::Dumper; print STDERR "tsinput is ".Dumper(\@_)."\n";
      if ($_[0]->{t} =~ /not/) {
        return 0;
      }
@@ -56,9 +58,7 @@ my %parsing_rules = (
 );
 
 my $how_many_parser = new Parse::Stallion({
-  do_evaluation_in_parsing => 1
- });
-$how_many_parser->set_up_full_rule_set({
+  do_evaluation_in_parsing => 1,
   rules_to_set_up_hash => \%parsing_rules,
   start_rule => 'start_expression',
 });

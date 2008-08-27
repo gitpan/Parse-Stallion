@@ -1,17 +1,16 @@
 #!/usr/bin/perl
 #Copyright 2008 Arthur S Goldstein
-use Test::More tests => 4;
+use Test::More tests => 3;
 BEGIN { use_ok('Parse::Stallion') };
 
 my @results_array;
 my %calculator_scan_rules = (
  start_expression => {
-   rule_type => 'and',
-   composed_of => ['tokens', {regex_match => qr /\z/}]
+   and => ['tokens', {regex_match => qr /\z/}]
   }
 ,
  tokens => {
-   multiple => 'token'
+   multiple => ['token']
  }
 ,
  token => {
@@ -198,65 +197,6 @@ is_deeply (\@results_array,
 ,
  "tokenized times plus plus parentheses");
 
-
-my %calculator_parse_rules = (
- start_expression => {and => ['expression'],
-   evaluation => sub {return $_[0]->{expression}}
- },
- expression => {
-   or => [{and=>['term', 'addition', 'expression']}, 'term'],
-   evaluation => sub {if (defined $_[0]->{expression}) {
-     return $_[0]->{term} + $_[0]->{expression};
-    }
-   return $_[0]->{term};
-  }
- }
-,
- term => {
-   or => [{and=>['factor', 'multiplication', 'term']}, 'factor'],
-   evaluation => sub {if (defined $_[0]->{term}) {
-     return $_[0]->{term} * $_[0]->{factor};
-    }
-   return $_[0]->{factor};
- }
- },
-,
- factor => {
-   or => [{and=>['left_parenthesis', 'constant', 'right_parenthesis']},
-    'constant'],
-   evaluation => sub {return $_[0]->{constant}}
- },
-left_parenthesis => {
-  scan_leaf => 'left parenthesis'
- },
-right_parenthesis => {
-  scan_leaf => 'right parenthesis'
- },
-constant => {
-  scan_leaf => 'constant',
-  evaluation => sub {return $_[0]->{value}}
- },
-addition => {
-  scan_leaf => 'addition'
- },
-multiplication => {
-  scan_leaf => 'multiplication'
- }
-);
-
-my $calculator_parser = new Parse::Stallion({
-  rules_to_set_up_hash => \%calculator_parse_rules,
-  scanner => 1,
-  start_rule => 'start_expression'});
-
-$result =
- $calculator_parser->parse({scan_array=>\@results_array,
-  trace => 0});
-
-$result =
- $calculator_parser->parse_and_evaluate({scan_array=>\@results_array});
-
-is ($result, 103, 'scan and parse');
 
 print "\nAll done\n";
 

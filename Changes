@@ -1,5 +1,27 @@
 Revision history for Perl extension Parse::Stallion.
 
+0.04
+
+     multiple rules can now take lists as arguments instead of just one subrule
+     the total number of subrules and how many times each subrule appears
+     is controllable
+
+     reduced number of methods, now only new and parse_and_evaluate
+
+     internal data structure changes for rule types, simplifying code
+
+     start_rule can be determined automatically
+
+     parse_and_evaluate can take single string as argument (or ref)
+     and will return the resultant evaluation; if in array reference
+     the parse info will also be returned
+
+     more complicated notation to define rules not allowed
+
+     removed scan arrays
+
+     documented parse_function, display_value_function
+
 0.03
      allowed 'eval' to be an abbreviation for 'evaluation'
 

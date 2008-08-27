@@ -4,8 +4,8 @@ use Parse::Stallion;
 use Time::Local;
 
 my %rule;
-$rule{start_date} = { rule_type => 'and',
-  composed_of => ['parsed_date', 'end_of_string'],
+$rule{start_date} = { 
+  and => ['parsed_date', 'end_of_string'],
   evaluation => sub {
     my $seconds_since_epoch = $_[0]->{parsed_date};
     my ($seconds, $minutes, $hour, $mday, $month, $year) =
@@ -19,34 +19,34 @@ $rule{start_date} = { rule_type => 'and',
     return (1900+$year).$month.$mday.$hour.$minutes.$seconds;
   }
 };
-$rule{parsed_date} = { rule_type => 'or',
-  any_one_of => ['date', 'date_operation'],
+$rule{parsed_date} = { 
+  or => ['date', 'date_operation'],
 };
-$rule{date_operation} = { rule_type => 'or',
-  any_one_of => ['add_time', 'subtract_time'],
+$rule{date_operation} = { 
+  or => ['add_time', 'subtract_time'],
 };
-$rule{add_time} = { rule_type => 'and',
-  composed_of => ['date', 'plus', 'time'],
+$rule{add_time} = { 
+  and => ['date', 'plus', 'time'],
   evaluation => sub {return $_[0]->{date} + $_[0]->{time}}
 };
-$rule{subtract_time} = { rule_type => 'and',
-  composed_of => ['date', 'minus', 'time'],
+$rule{subtract_time} = { 
+  and => ['date', 'minus', 'time'],
   evaluation => sub {
    return $_[0]->{date} - $_[0]->{time}}
 };
-$rule{date} = { rule_type => 'or',
-  any_one_of => ['standard_date', 'special_date']
+$rule{date} = { 
+  or => ['standard_date', 'special_date']
 };
-$rule{end_of_string} = {rule_type => 'leaf',
+$rule{end_of_string} = {
   regex_match => qr/\z/,
 };
-$rule{plus} = { rule_type => 'leaf',
+$rule{plus} = { 
   regex_match => qr/\s*\+\s*/,
 };
-$rule{minus} = { rule_type => 'leaf',
+$rule{minus} = { 
   regex_match => qr/\s*\-\s*/,
 };
-$rule{standard_date} = { rule_type => 'leaf',
+$rule{standard_date} = { 
   regex_match => qr(\d+\/\d+\/\d+),
   evaluation => sub {my $date = $_[0];
     $date =~ /(\d+)\/(\d+)\/(\d+)/;
@@ -56,22 +56,22 @@ $rule{standard_date} = { rule_type => 'leaf',
     return timegm(0,0,0,$mday, $month, $year);
   },
 };
-$rule{special_date} = { rule_type => 'leaf',
+$rule{special_date} = { 
   regex_match => qr/now/i,
   evaluation => sub {return time;},
 };
-$rule{time} = { rule_type => 'or',
-  any_one_of => ['just_time', 'just_time_plus_list', 'just_time_minus_list']
+$rule{time} = { 
+  or => ['just_time', 'just_time_plus_list', 'just_time_minus_list']
 };
-$rule{just_time_plus_list} = { rule_type => 'and',
-  composed_of => ['just_time', 'plus', 'time'],
+$rule{just_time_plus_list} = { 
+  and => ['just_time', 'plus', 'time'],
   evaluation => sub {return $_[0]->{just_time} + $_[0]->{time}}
 };
-$rule{just_time_minus_list} = { rule_type => 'and',
-  composed_of => ['just_time', 'minus', 'time'],
+$rule{just_time_minus_list} = { 
+  and => ['just_time', 'minus', 'time'],
   evaluation => sub {return $_[0]->{just_time} - $_[2]->{time}}
 };
-$rule{just_time} = { rule_type => 'leaf',
+$rule{just_time} = { 
   regex_match => qr(\d+\s*[hdms])i,
   evaluation => sub {
     my $to_match = $_[0];
@@ -101,7 +101,7 @@ my $date_parser = new Parse::Stallion({
 $result = $date_parser->parse_and_evaluate({parse_this=>"now"});
 print "now is $result\n";
 
-$result = $date_parser->parse_and_evaluate({parse_this=>"now - 30s"});
+$result = $date_parser->parse_and_evaluate("now - 30s");
 print "now minus 30 seconds is $result\n";
 
 $result = $date_parser->parse_and_evaluate({parse_this=>"now + 70h"});

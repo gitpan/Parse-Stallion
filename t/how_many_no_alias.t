@@ -1,8 +1,8 @@
 #!/usr/bin/perl
-#Copyright 2007 Arthur S Goldstein
+#Copyright 2007-8 Arthur S Goldstein
 use Test::More tests => 6;
 BEGIN { use_ok('Parse::Stallion') };
-#use Data::Dumper;
+#use Data::Dumper; print STDERR "hi\n";
 
 my %parsing_rules = (
  start_expression => {
@@ -12,6 +12,7 @@ my %parsing_rules = (
  two_statements => {
    and=> ['list_statement','truth_statement'],
    evaluation => sub {
+#print STDERR "two stat input is ".Dumper(\@_)."\n";
      if ($_[0]->{list_statement} != $_[0]->{truth_statement}) {
        return (undef, 1);
      }
@@ -23,8 +24,10 @@ my %parsing_rules = (
    evaluation => sub {
 #print STDERR "input is now ".Dumper(\@_);
      if ($_[0]->{count_statement} == scalar(@{$_[0]->{list}})) {
+#print STDERR "returning 1\n";
        return 1;
      }
+#print STDERR "returning 0\n";
      return 0;
    }
  },
@@ -38,16 +41,17 @@ my %parsing_rules = (
   leaf=>qr/\d+/,
    evaluation => sub { return 0 + shift; }
  },
- list => {and => ['number', {multiple=>{and=>[{l=>qr/\,/}, 'number']}}],
-  evaluation => sub {return $_[0]->{number}}
+ list => {and => ['number', {m=>{and=>[{l=>qr/\,/}, 'number']}}],
+  evaluation => sub {
+    #use Data::Dumper;print STDERR "list input is ".Dumper(\@_)."\n";
+    return $_[0]->{number}}
  },
  truth_statement => {
-   or => [{l=>qr/\. that is the truth\./},
-    {l=>qr/\. that is not the truth\./}],
+   or => [[{l=>qr/\. that is the truth\./},'x'],
+    [{l=>qr/\. that is not the truth\./},'x']],
    evaluation => sub {
-     #use Data::Dumper;
-     #print STDERR "input is ".Dumper(\@_)."\n";
-     if ($_[0]->{''} =~ /not/) {
+     #use Data::Dumper; print STDERR "ts input is ".Dumper(\@_)."\n";
+     if ($_[0]->{'x'} =~ /not/) {
        return 0;
      }
      return 1;
@@ -56,9 +60,7 @@ my %parsing_rules = (
 );
 
 my $how_many_parser = new Parse::Stallion({
-  do_evaluation_in_parsing => 1
- });
-$how_many_parser->set_up_full_rule_set({
+  do_evaluation_in_parsing => 1,
   rules_to_set_up_hash => \%parsing_rules,
   start_rule => 'start_expression',
 });

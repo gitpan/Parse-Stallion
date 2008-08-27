@@ -14,7 +14,7 @@ sub equality_sub {return $_[0] == $_[1]};
 my %program_rules = (
  program => {
    rule_type => 'and',
-   composed_of => ['block_of_statements', {leaf=>qr/\z/}],
+   and => ['block_of_statements', {leaf=>qr/\z/}],
    evaluation => sub {my $block_of_statements = $_[0]->{block_of_statements};
        return $block_of_statements;
     }
@@ -25,7 +25,7 @@ my %program_rules = (
   }
 ,
  block_of_statements => {
-   multiple => 'full_statement',
+   multiple => ['full_statement'],
    evaluation => sub {
       my @statements = @{$_[0]->{full_statement}};
       return sub {
@@ -134,8 +134,8 @@ equality => {
  },
  numeric_expression => {
    rule_type => 'and',
-   composed_of => ['term', 'ows',
-    {repeating => {composed_of => ['plus_or_minus', 'ows', 'term', 'ows'],},},],
+   and => ['term', 'ows',
+    {m => [{and => ['plus_or_minus', 'ows', 'term', 'ows'],}],},],
    evaluation => sub {my $terms = $_[0]->{term};
     my $plus_or_minus = $_[0]->{plus_or_minus};
     my $value = shift @$terms;
@@ -154,8 +154,8 @@ equality => {
    },
   },
  term => {
-   composed_of => ['value', 
-    {repeating => {composed_of => ['times_or_divide', 'value']}}],
+   and => ['value', 
+    {m => [{and => ['times_or_divide', 'value']}]}],
    evaluation => sub {
     my $values = $_[0]->{value};
     my $times_or_divide = $_[0]->{times_or_divide};
@@ -191,15 +191,12 @@ equality => {
 my $program_parser = new Parse::Stallion({
  rules_to_set_up_hash=>\%program_rules, start_rule=>'program'});
 
-my $result =
-  $program_parser->parse({
+my $fin_result =
+  $program_parser->parse_and_evaluate({
    parse_this => 'x=1; while (x < 7) {print x; x = x + 2;};',
    trace=> 0
  });
 
-my $parsed_tree = $result->{tree};
-
-my $fin_result = $program_parser->do_tree_evaluation({tree=>$parsed_tree});
 print "Generated program\n";
 
 &$fin_result;

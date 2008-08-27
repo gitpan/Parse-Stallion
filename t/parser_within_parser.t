@@ -60,7 +60,7 @@ my %parsing_rules = (
  },
  string_value => {leaf=> qr/\w+/},
  string_list => {
-   and => ['string_value', {multiple=>{and=>['comma','string_value']}}],
+   and => ['string_value', {multiple=>[{and=>['comma','string_value']}]}],
    evaluation => sub {
 #print STDERR "sl\n";
     return $_[0]->{string_value}}
@@ -69,30 +69,29 @@ my %parsing_rules = (
 );
 
 my $pe_parser = new Parse::Stallion({
-  do_evaluation_in_parsing => 1
- });
-$pe_parser->set_up_full_rule_set({
+  do_evaluation_in_parsing => 1,
   rules_to_set_up_hash => \%parsing_rules,
   start_rule => 'start_expression',
 });
 
 my $result;
+my $x;
 
-$result = $pe_parser->parse_and_evaluate({parse_this=>"abc middle def"});
+($x, $result) = $pe_parser->parse_and_evaluate({parse_this=>"abc middle def"});
 
-is ($pe_parser->parse_failed,0, 'simple middle parse');
+is ($result->{parse_failed},0, 'simple middle parse');
 
-is ($result,'elddim', 'simple middle parse');
+is ($x,'elddim', 'simple middle parse');
 
-$result = $pe_parser->parse_and_evaluate({parse_this=>"abc muddle def"});
+($x, $result) = $pe_parser->parse_and_evaluate({parse_this=>"abc muddle def"});
 
-is ($pe_parser->parse_failed,0, 'simple middle parse');
+is ($result->{parse_failed},0, 'simple middle parse');
 
-is ($result,'elddum', 'simple middle parse');
+is ($x,'elddum', 'simple middle parse');
 
-$result = $pe_parser->parse_and_evaluate({parse_this=>"abc maddle def"});
+($x, $result) = $pe_parser->parse_and_evaluate({parse_this=>"abc maddle def"});
 
-is ($pe_parser->parse_failed,1, 'simple middle parse');
+is ($result->{parse_failed},1, 'simple middle parse');
 
 
 print "\nAll done\n";

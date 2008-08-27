@@ -9,9 +9,9 @@ example/csvfh.data
 example/date_parsing.pl
 example/how_many.pl
 t/alias_test.t
-t/calc_scan_parse.t
 t/calc_scan_with_no_end.t
 t/calculator_parsing.t
+t/calculator_no_eval.t
 t/csv.t
 t/csv.t_1
 t/csv.t_2

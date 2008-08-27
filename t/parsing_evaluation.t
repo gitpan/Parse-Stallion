@@ -1,6 +1,6 @@
 #!/usr/bin/perl
-#Copyright 2007 Arthur S Goldstein
-use Test::More tests => 19;
+#Copyright 2007-8 Arthur S Goldstein
+use Test::More tests => 25;
 BEGIN { use_ok('Parse::Stallion') };
 #use Data::Dumper;
 
@@ -56,7 +56,7 @@ my %parsing_rules = (
  abc => {leaf=>qr/a+b*c+/},
  dbf => {leaf=>qr/d+b*f+/},
  theand => {leaf=>qr/theand/},
- multi_test => {multiple=>'comma',minimum=>2,
+ multi_test => {multiple=>'comma',minimum_child_count=>2,
   e=> sub {
 #print STDERR Dumper(\@_);
     if ($#{$_[0]->{comma}} != 4) {
@@ -68,114 +68,111 @@ my %parsing_rules = (
 );
 
 my $pe_parser = new Parse::Stallion({
-  do_evaluation_in_parsing => 1
- });
-$pe_parser->set_up_full_rule_set({
+  do_evaluation_in_parsing => 1,
   rules_to_set_up_hash => \%parsing_rules,
   start_rule => 'start_expression',
 });
 
 my $result;
+my $x;
 
-$result = eval{$pe_parser->parse_and_evaluate({parse_this=>"abc middle def"})};
+($x, $result) =
+ eval{$pe_parser->parse_and_evaluate({parse_this=>"abc middle def"})};
 
-is ($pe_parser->parse_failed,0, 'simple middle parse');
+is ($result->{parse_failed},0, 'simple middle parse');
 
-$result =
- eval{$pe_parser->parse_and_evaluate({parse_this=>"a,bc middle de,f"})};
+($x, $result) =
+ $pe_parser->parse_and_evaluate({parse_this=>"a,bc middle de,f"});
 
-is ($pe_parser->parse_failed,0, 'two list middle parse');
+is ($result->{parse_failed},0, 'two list middle parse');
 
-$result =
+($x, $result) =
  eval{$pe_parser->parse_and_evaluate({parse_this=>"a,bc middle def"})};
 
-is ($pe_parser->parse_failed,1, 'illegal middle  parse');
+is ($result->{parse_failed},1, 'illegal middle parse');
 
-$result =
+#print STDERR "illmp ".$pe_parser->{parse_succeeded}."\n";
+
+($x, $result) =
  eval{$pe_parser->parse_and_evaluate({parse_this=>"a,bc,de,f"})};
-is ($pe_parser->parse_failed,0, 'legal list div 4');
+is ($result->{parse_failed},0, 'legal list div 4');
 
-$result =
+($x, $result) =
  eval{$pe_parser->parse_and_evaluate({parse_this=>"a,bc,de,f,g"})};
-is ($pe_parser->parse_failed,1, 'illegal list div 4');
+is ($result->{parse_failed},1, 'illegal list div 4');
 
-$result =
+($x, $result) =
  eval{$pe_parser->parse_and_evaluate({parse_this=>"odd"})};
 
-is ($pe_parser->parse_failed,0, 'odd leaf');
+is ($result->{parse_failed},0, 'odd leaf');
 
 
-$result =
+($x, $result) =
  eval{$pe_parser->parse_and_evaluate({parse_this=>"even"})};
 
-is ($pe_parser->parse_failed,1, 'even leaf');
+is ($result->{parse_failed},1, 'even leaf');
 
-$result =
+($x, $result) =
  eval{$pe_parser->parse_and_evaluate({parse_this=>"theandabcdbff"})};
 
-is ($pe_parser->parse_failed,0, 'or and part');
+is ($result->{parse_failed},0, 'or and part');
 
-$result =
+($x, $result) =
  eval{$pe_parser->parse_and_evaluate({parse_this=>"theandabcdbfg"})};
 
-is ($pe_parser->parse_failed,1, 'or fail and part');
+is ($result->{parse_failed},1, 'or fail and part');
 
-$result =
+($x, $result) =
  eval{$pe_parser->parse_and_evaluate({parse_this=>"abbc"})};
 
-is ($pe_parser->parse_failed,0, 'or evaluation test');
+is ($result->{parse_failed},0, 'or evaluation test');
 
 
-$result =
+($x, $result) =
  eval{$pe_parser->parse_and_evaluate({parse_this=>"abbbc"})};
 
-is ($pe_parser->parse_failed,1, 'or fail evaluation test');
+is ($result->{parse_failed},1, 'or fail evaluation test');
 
 
 #print STDERR "dbforzero\n";
 
-$result =
+($x, $result) =
  eval{$pe_parser->parse_and_evaluate({parse_this=>"dbbf"})};
 
-is ($pe_parser->parse_failed,0, 'dbf or evaluation test');
+is ($result->{parse_failed},0, 'dbf or evaluation test');
 
 #print STDERR "dbfor\n";
 
-$result =
+($x, $result) =
  eval{$pe_parser->parse_and_evaluate({parse_this=>"dbbbbf"})};
 
-is ($pe_parser->parse_failed,1, 'dbf or fail evaluation test');
+is ($result->{parse_failed},1, 'dbf or fail evaluation test');
 
-$result =
+($x, $result) =
  eval{$pe_parser->parse_and_evaluate({parse_this=>",,,,,"})};
 
-is ($pe_parser->parse_failed,0, 'multi comma test');
+is ($result->{parse_failed},0, 'multi comma test');
 
-$result = $pe_parser->parse_and_evaluate({parse_this=>",,,,"});
+($x, $result) =
+$pe_parser->parse_and_evaluate({parse_this=>",,,,"});
 
-is ($pe_parser->parse_failed,1, 'multi comma test parse succeed');
+is ($result->{parse_failed},1, 'multi comma test parse succeed');
 
 my $eval_pe_parser = new Parse::Stallion({
   do_evaluation_in_parsing => 1,
-  croak_on_failing => 1,
- });
-$eval_pe_parser->set_up_full_rule_set({
   rules_to_set_up_hash => \%parsing_rules,
   start_rule => 'start_expression',
 });
 
 
-$result = eval {$eval_pe_parser->parse_and_evaluate({parse_this=>",,,,"})};
-
-like ($@, qr/^Parse failed/, 'croak on failing');
-
-
-$result = $pe_parser->parse({parse_this=>"a,bc middle de,f"});
+($x, $result) =
+ $pe_parser->parse_and_evaluate({parse_this=>"a,bc middle de,f"});
 
 my @trace;
 foreach my $tr (@{$result->{parse_trace}}) {
   push @trace, $tr->{rule_name}, $tr->{value};
 }
+#use Data::Dumper;print STDERR "trace is ".Dumper(\@trace)."\n";
 is_deeply
 (\@trace,
 [                                  
@@ -191,27 +188,33 @@ is_deeply
           'a,bc middle de,f',
           'string_list',
           ',bc middle de,f',
-          'string_list__XX__1',
+          'string_list__XZ__1',
           ',bc middle de,f',
-          'string_list__XX__1__XW__2',
+          'string_list__XZ__1__XZ__2',
           ',bc middle de,f',
           'comma',
           ',bc middle de,f',
-          'string_list__XX__1__XW__2',
+          'string_list__XZ__1__XZ__2',
           'bc middle de,f',
           'string_value',
           'bc middle de,f',
-          'string_list__XX__1__XW__2',
+          'string_list__XZ__1__XZ__2',
           ' middle de,f',
-          'string_list__XX__1',
+          'string_list__XZ__1__XZ__2',
           ' middle de,f',
-          'string_list__XX__1__XW__2',
+          'string_list__XZ__1',
+          ' middle de,f',
+          'string_list__XZ__1__XZ__2',
           ' middle de,f',
           'comma',
           ' middle de,f',
-          'string_list__XX__1__XW__2',
+          'string_list__XZ__1__XZ__2',
           ' middle de,f',
-          'string_list__XX__1',
+          'string_list__XZ__1__XZ__2',
+          ' middle de,f',
+          'string_list__XZ__1',
+          ' middle de,f',
+          'string_list',
           ' middle de,f',
           'string_list',
           ' middle de,f',
@@ -227,37 +230,59 @@ is_deeply
           'de,f',
           'string_list',
           ',f',
-          'string_list__XX__1',
+          'string_list__XZ__1',
           ',f',
-          'string_list__XX__1__XW__2',
+          'string_list__XZ__1__XZ__2',
           ',f',
           'comma',
           ',f',
-          'string_list__XX__1__XW__2',
+          'string_list__XZ__1__XZ__2',
           'f',
           'string_value',
           'f',
-          'string_list__XX__1__XW__2',
+          'string_list__XZ__1__XZ__2',
           '',
-          'string_list__XX__1',
+          'string_list__XZ__1__XZ__2',
           '',
-          'string_list__XX__1__XW__2',
+          'string_list__XZ__1',
+          '',
+          'string_list__XZ__1__XZ__2',
           '',
           'comma',
           '',
-          'string_list__XX__1__XW__2',
+          'string_list__XZ__1__XZ__2',
           '',
-          'string_list__XX__1',
+          'string_list__XZ__1__XZ__2',
+          '',
+          'string_list__XZ__1',
+          '',
+          'string_list',
           '',
           'string_list',
           '',
           'same_sized_lists',
           '',
+          'same_sized_lists',
+          '',
+          'parse_expression',
+          '',
+          'parse_expression',
+          '',
+          'parse_expression',
+          '',
+          'parse_expression',
+          '',
+          'parse_expression',
+          '',
+          'parse_expression',
+          '',
           'parse_expression',
           '',
           'start_expression',
           '',
-          'start_expression__XX__0',
+          'start_expression__XZ__0',
+          '',
+          'start_expression',
           '',
           'start_expression',
           ''
@@ -290,10 +315,33 @@ my $multi_test_parser = new Parse::Stallion({
   start_rule => 'start_expression',
 });
 
-$result = $multi_test_parser->parse({parse_this=>"a,bc middle de,f"});
+($x, $result)
+ = $multi_test_parser->parse_and_evaluate({parse_this=>"a,bc middle de,f"});
 
 #use Data::Dumper; print STDERR Dumper($result)."\n";
 is ($result->{parse_succeeded}, 0, 'Always fail multiple rule');
+
+   $aa_parser = new Parse::Stallion({
+     rules_to_set_up_hash => {s => {l => qr/aa/}},
+     start_rule => 's',
+     end_of_parse_allowed => sub {return 1},
+   });
+   
+  my ($results, $info) = $aa_parser->parse_and_evaluate('aab'); 
+
+is ($info->{unparsed}, 'b', 'aa parser b');
+
+  $x = 'aabb';
+  my $y = $aa_parser->parse_and_evaluate($x);
+  is ($x, 'aabb', 'no change aa parser');
+  is ($y, 'aa', 'no change y aa parser');
+  $y = $aa_parser->parse_and_evaluate(\$x);
+  is ($x, 'bb', 'change aa parser');
+  is ($y, 'aa', 'change y aa parser');
+  $x = 'aabb';
+  $y = $aa_parser->parse_and_evaluate({parse_this => \$x});
+  is ($x, 'bb', 'change 2 aa parser');
+  is ($y, 'aa', 'change 2 y aa parser');
 
 print "\nAll done\n";
 

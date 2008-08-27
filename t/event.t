@@ -99,7 +99,7 @@ event => {
 },
 
 event_detail => {
-  multiple => 'event_detail_item',
+  multiple => ['event_detail_item'],
   e => sub {
     my $parameters = shift;
     my %detail;
@@ -164,13 +164,13 @@ my $event_parser = new Parse::Stallion({
 my $event_in = 'when: yesterday
 what: nothing';
 
-my $ne_result = $event_parser->parse({parse_this=>$event_in, trace => 0});
+my $result = $event_parser->parse_and_evaluate({parse_this=>$event_in, trace => 0});
 #use Data::Dumper;
 #print STDERR "Results out ".(Dumper($ne_result))."\n";
 #foreach my $tr (@{$result->{parse_trace}}) {
 #  print STDERR "tr is now ".Dumper($tr)."\n";
 #};
-my $result = $event_parser->do_tree_evaluation($ne_result);
+#my $result = $event_parser->do_tree_evaluation($ne_result);
 #print STDERR "result is ".Dumper($result)."\n";
 
 is_deeply ($result, {

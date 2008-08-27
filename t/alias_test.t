@@ -5,7 +5,7 @@ BEGIN { use_ok('Parse::Stallion') };
 
 my %basic_plus_grammar = (
  start_expression => {
-   composed_of => ['number', {regex_match => qr/\s*[+]\s*/},
+   and => ['number', {regex_match => qr/\s*[+]\s*/},
     ['number', 'right_number'], {regex_match => qr/\z/}],
    evaluation => sub {return $_[0]->{number} + $_[0]->{right_number},
   }

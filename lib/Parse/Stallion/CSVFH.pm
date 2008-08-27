@@ -32,9 +32,9 @@ my %with_header_csv_rules = (
 
    header => {and=>['name', {multiple=>{and=>['COMMA', 'name']}}],
      evaluation => sub {$field_count = 0; return $_[0]->{name}},
-     on_match => sub {
-      #print STDERR "reset fc\n";
-      $_[1]->{field_count} = 0}
+#     on_match => sub {
+#      #print STDERR "reset fc\n";
+#      $_[1]->{field_count} = 0}
     },
 
    record => {and=>['field', {multiple=>{and=>['COMMA', 'field']}}],
@@ -47,15 +47,15 @@ my %with_header_csv_rules = (
      $field_count = 0;
      return $field;
 },
-     on_match => sub {my $object = shift;
-       my $hash = shift;
-       $hash->{row_number}++;
+#     on_match => sub {my $object = shift;
+#       my $hash = shift;
+#       $hash->{row_number}++;
 #print STDERR "End of row NC: ".$hash->{name_count}." FC: ".$hash->{field_count}."\n";
-       if ($hash->{name_count} != $hash->{field_count}) {
-         croak ( "Row ".$hash->{row_number}." has an error in field count");
-       }
-       $hash->{field_count} = 0;
-      }
+#       if ($hash->{name_count} != $hash->{field_count}) {
+#         croak ( "Row ".$hash->{row_number}." has an error in field count");
+#       }
+#       $hash->{field_count} = 0;
+#      }
     },
 
    name => {and=>['field'],
@@ -65,9 +65,9 @@ my %with_header_csv_rules = (
        $name_count++;
        return $value},
      unevaluation => sub {croak 'Mismatch on name in heaader'},
-     on_match => sub {my $object = shift;
-       my $hash = shift; $hash->{name_count}++},
-     on_unmatch => sub {croak 'Mismatch on name in heaader'},
+#     on_match => sub {my $object = shift;
+#       my $hash = shift; $hash->{name_count}++},
+#     on_unmatch => sub {croak 'Mismatch on name in heaader'},
    },
 
    field => {or => ['escaped', 'non_escaped'],
@@ -77,11 +77,11 @@ my %with_header_csv_rules = (
        my ($value) = values %$or;
        return $value},
      unevaluation => sub {croak 'Mismatch on fields in row '.$row},
-     on_match => sub {my $object = shift;
-       my $hash = shift;
-       #print STDERR "increment fc\n";
-       $hash->{field_count}++},
-     on_unmatch => sub {croak 'Mismatch on fields in row '.$row}
+#     on_match => sub {my $object = shift;
+#       my $hash = shift;
+#       #print STDERR "increment fc\n";
+#       $hash->{field_count}++},
+#     on_unmatch => sub {croak 'Mismatch on fields in row '.$row}
    },
 
    escaped => {and => ['DQUOTE', 'inner_escaped', 'DQUOTE'],
@@ -106,20 +106,20 @@ my %with_header_csv_rules = (
    DQUOTE => {leaf=>qr/\x22/},
 
    LF => {leaf=>qr/\x0A/,
-    on_match => sub {my $fh = $_[1]->{file_handle};
+#    on_match => sub {my $fh = $_[1]->{file_handle};
 #print STDERR "LF match\n";
-      $_[0] = <$fh>;}
+#      $_[0] = <$fh>;}
    },
 
    CRLF => {leaf=>qr/\n/,
-    on_match => sub {my $fh = $_[1]->{file_handle};
+#    on_match => sub {my $fh = $_[1]->{file_handle};
 #print STDERR "CRLF match v: X".$_[2]."X\n";
-      $_[0] = <$fh>;
-      if (!defined $_[0]) {
-        $_[0] = '';
-      }
+#      $_[0] = <$fh>;
+#      if (!defined $_[0]) {
+#        $_[0] = '';
+#      }
 #print STDERR "object now ".$_[0]."\n";
-      }
+#      }
     },
 
    TEXTDATA => {leaf=>qr/[\x20-\x21\x23-\x2B\x2D-\x7E]+/,
@@ -133,25 +133,24 @@ sub read_in_file_handle {
   my $file_handle = $parameters->{file_handle};
   $name_count = 0;
   $row_number = 0;
+  my $ivf = 0;
   my $ps = new Parse::Stallion({
     rules_to_set_up_hash=>\%with_header_csv_rules, start_rule=>'file',
-     keep_white_space => 1,
-     on_start => sub {
-       my $object = $_[0];
-       my $hash = $_[1];
-       my $fh = $hash->{file_handle} = $object;
-       $_[0] = <$fh>;
-      },
+    backtrack_can_change_value => 1,
+#     keep_white_space => 1,
+#     on_start => sub {
+#       my $object = $_[0];
+#       my $hash = $_[1];
+#       my $fh = $hash->{file_handle} = $object;
+#       $_[0] = <$fh>;
+#      },
       parse_function => sub {my $cv = shift;
 #print STDERR "cv is $cv\n";
 #print STDERR "cfh is $file_handle\n";
         if (defined $cv && $cv ne '') {return $cv};
         my $next_line = <$file_handle>;
         if (defined $next_line) {return $next_line};
-        return '';}
-    });
-  my $ivf = 0;
-  $ps->set_handle_object({
+        return '';},
     increasing_value_function => sub {return $ivf++}
   });
   return $ps->parse_and_evaluate;

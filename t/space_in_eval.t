@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-#Copyright 2007 Arthur S Goldstein
+#Copyright 2007-8 Arthur S Goldstein
 use Test::More tests => 4;
 BEGIN { use_ok('Parse::Stallion') };
 use Time::Local;
@@ -7,9 +7,10 @@ use Time::Local;
 
 my %rule;
 $rule{start_rule} = { rule_type => 'and',
-  composed_of => ['white_space_word', 'end_of_string'],
+  and => ['white_space_word', 'end_of_string'],
   evaluation => sub {
     my $param = shift;
+#use Data::Dumper;print STDERR "param in to start rule is ".Dumper($param)."\n";
     if ($param->{white_space_word} =~ /\s/) {
       return "found white space";
     }
@@ -41,8 +42,11 @@ my $during_parser = new Parse::Stallion({
   start_rule => 'start_rule',
 });
 
+#print STDERR "getting result 2\n";
+
 $result_2 = $during_parser->parse_and_evaluate({parse_this=>' jj '});
 
+#print STDERR "result 1 is $result_1 and r2 is $result_2\n";
 is ($result_1, $result_2, "with spaces match");
 
 
