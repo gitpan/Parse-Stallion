@@ -1,84 +1,72 @@
 #!/usr/bin/perl
-#Copyright 2007 Arthur S Goldstein
+#Copyright 2007-8 Arthur S Goldstein
 use Test::More tests => 7;
 BEGIN { use_ok('Parse::Stallion') };
 
 my %calculator_rules = (
- start_expression => {
-   and => ['expression', 'end_of_string'],
-  }
+ start_expression => A(
+   'expression', 'end_of_string')
 ,
- expression => {
-   and => ['term', 
-    {multiple => [{and => ['plus_or_minus', 'term'],}],},],
- }
+ expression => A(
+   'term', 
+    M(A('plus_or_minus', 'term'))
+ )
 ,
- term => {
-   and => ['factor', 
-    {multiple => [{and => ['times_or_divide_or_modulo', 'factor'],}],},],
-  },
+ term => A(
+   'factor', 
+    (M(A('times_or_divide_or_modulo', 'factor')))
+  ),
 ,
- factor => {
-   and => ['fin_exp', 
-    {multiple => [{and => ['power_of', 'fin_exp'],}],},],
-  },
+ factor => AND(
+   'fin_exp', 
+    MULTIPLE(AND('power_of', 'fin_exp')))
 ,
-fin_exp => {
-  or => [
-    {and => ['left_parenthesis', 'expression', 'right_parenthesis'],
-    },
-    {and => ['number'],
-    },
-   ],
-  },
+fin_exp => OR(
+    AND('left_parenthesis', 'expression', 'right_parenthesis'),
+    AND('number'))
 ,
-end_of_string => {
-  regex_match => qr/\z/,
- },
+end_of_string => LEAF(
+  qr/\z/)
 ,
-number => {
-  regex_match => qr/\s*[+-]?(\d+(\.\d*)?|\.\d+)\s*/,
- },
+number => LEAF(
+  qr/\s*[+-]?(\d+(\.\d*)?|\.\d+)\s*/
+ )
 ,
-left_parenthesis => {
-  regex_match => qr/\s*\(\s*/,
- },
+left_parenthesis => LEAF(
+  qr/\s*\(\s*/)
 ,
-right_parenthesis => {
-  regex_match => qr/\s*\)\s*/,
- },
+right_parenthesis => LEAF(
+  qr/\s*\)\s*/
+ )
 ,
-power_of => {
-  regex_match => qr/\s*\*\*\s*/,
- },
+power_of => LEAF(
+  qr/\s*\*\*\s*/
+ )
 ,
-plus_or_minus => {
-  or => ['plus', 'minus'],
- },
+plus_or_minus => OR(
+  'plus', 'minus'
+ )
 ,
-plus => {
-  regex_match => qr/\s*\+\s*/,
- },
+plus => LEAF(
+  qr/\s*\+\s*/)
 ,
-minus => {
-  regex_match => qr/\s*\-\s*/,
- },
+minus => LEAF(
+  qr/\s*\-\s*/
+ )
 ,
-times_or_divide_or_modulo => {
-  or => ['times', 'divided_by', 'modulo'],
- },
+times_or_divide_or_modulo => 
+  OR('times', 'divided_by', 'modulo')
 ,
-modulo => {
-  regex_match => qr/\s*\%\s*/,
- },
+modulo => LEAF(
+  qr/\s*\%\s*/)
 ,
-times => {
-  regex_match => qr/\s*\*\s*/,
- },
+times => LEAF(
+  qr/\s*\*\s*/
+ )
 ,
-divided_by => {
-  regex_match => qr/\s*\/\s*/,
- },
+divided_by => LEAF(
+  qr/\s*\/\s*/
+ )
 ,
 );
 
@@ -127,18 +115,16 @@ is_deeply ($result,
 
 
 my %simp_calculator_rules = (
- start_expression => {
-   and => ['expression',],
-  }
+ start_expression => 
+   AND('expression')
 ,
- expression => {
-   and => ['number', 
-    {multiple => {and => [[{regex_match=>qr/\s*\+\s*/},'plus'], 'number'],}},],
- }
+ expression => AND(
+   'number', 
+    MULTIPLE( AND({plus=>LEAF(qr/\s*\+\s*/)}, 'number')))
 ,
-number => {
-  regex_match => qr/\d*/,
- },
+number => LEAF(
+  qr/\d*/
+ ),
 ,
 );
 

@@ -1,5 +1,33 @@
 Revision history for Perl extension Parse::Stallion.
 
+0.1
+     additions to the documentation on parsing during evaluation
+
+     able to set up parser if grammar rules ref is the parameter to new
+
+     leaf rules specificied within other rules as only a Regexp (qr)
+
+     fixed finding start_rule if not specified
+
+     set default output of stringify
+
+     internal changes as to how parameters are passed to evaluation routines
+
+     which_parameters_are_arrays now returns 0/1 instead of scalar/array
+
+     added Parse::Stallion::EBNF
+
+     replaced pvalue with more functionality of parse_match
+
+     removed regex_not_match option in leaf, documented how to use
+     do_evaluation_in_parsing as substitute
+
+     removed parse_failed result (parse_succeeded is enough)
+
+     removed backtrack_can_change_value (not needed)
+
+     removed end_of_parse as a function
+
 0.04
 
      multiple rules can now take lists as arguments instead of just one subrule

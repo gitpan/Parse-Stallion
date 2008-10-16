@@ -5,33 +5,31 @@ BEGIN { use_ok('Parse::Stallion') };
 #use Data::Dumper;
 
 my %parsing_rules_with_min_first = (
- start_expression => {
-  a => ['parse_expression', {l => qr/x*/}, {l => qr/\z/}],
-  e => sub {return $_[0]->{parse_expression}},
- },
- parse_expression => {
-   m => 'pe',
-   match_min_first => 1,
-   e => sub { if (!exists $_[0]->{pe}) {return ''}
-    return join('',@{$_[0]->{pe}})},
- },
- pe => {
-   l => qr/./,
- },
+ start_expression => A(
+  'parse_expression', L(qr/x*/), L(qr/\z/),
+  E(sub {
+#use Data::Dumper;print STDERR "in se is ".Dumper(\@_);
+    return $_[0]->{parse_expression}})
+ ),
+ parse_expression => M(
+   'pe', MATCH_MIN_FIRST, USE_PARSE_MATCH
+ ),
+ pe => L(
+   qr/./
+ ),
 );
 
 my %parsing_rules_without_min_first = (
- start_expression => {
-  a => ['parse_expression', {l => qr/x*/}, {l => qr/\z/}],
-  e => sub { return $_[0]->{parse_expression}},
- },
- parse_expression => {
-   m => 'pe',
-   e => sub { return join('',@{$_[0]->{pe}})},
- },
- pe => {
-   l => qr/./,
- },
+ start_expression =>
+  A('parse_expression', L(qr/x*/), L(qr/\z/),
+  E(sub { return $_[0]->{parse_expression}})
+ ),
+ parse_expression => M(
+   'pe', USE_PARSE_MATCH
+ ),
+ pe => L(
+   qr/./
+ )
 );
 
 my $with_min_parser = new Parse::Stallion({
@@ -44,10 +42,11 @@ my $without_min_parser = new Parse::Stallion({
   start_rule => 'start_expression',
 });
 
-my $result;
+#my $result;
 
-$result = $with_min_parser->parse_and_evaluate({parse_this=>"qxxx"});
+my ($result, $other) = $with_min_parser->parse_and_evaluate({parse_this=>"qxxx"});
 
+#use Data::Dumper;print STDERR "parse trace is ".Dumper($other->{parse_trace})."\n";
 is ($result,'q', 'min parser');
 
 $result = $without_min_parser->parse_and_evaluate({parse_this=>"qxxx"});
@@ -56,7 +55,7 @@ is ($result,'qxxx', 'without min parser');
 
 $result = $with_min_parser->parse_and_evaluate({parse_this=>"xxx"});
 
-is ($result,'', 'no q min parser');
+is ($result,undef, 'no q min parser');
 
 $result = $without_min_parser->parse_and_evaluate({parse_this=>"xxx"});
 

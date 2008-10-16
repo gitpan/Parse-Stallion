@@ -89,18 +89,18 @@ my %keywords = (
 
 my %event_rules = (
 
-event => {
-  and => ['event_detail', {l=>qr/\z/}],
-  e => sub {
+event => 
+  A('event_detail', L(qr/\z/),
+  E(sub {
 #use Data::Dumper;
   #print STDERR "parms in ".Dumper(\@_)."\n";
   #print STDERR "hoo\n";
-   return $_[0]->{event_detail}},
-},
+   return $_[0]->{event_detail}})
+),
 
-event_detail => {
-  multiple => ['event_detail_item'],
-  e => sub {
+event_detail => M(
+  'event_detail_item',
+  E(sub {
     my $parameters = shift;
     my %detail;
 #use Data::Dumper;
@@ -114,18 +114,18 @@ event_detail => {
     }
 #print STDERR "detail back is ".Dumper(\%detail)."\n";
     return \%detail;
-  },
-},
+  })
+),
 
-event_detail_item => {
-  and => ['keyword', 'separator', 'information'],
-},
+event_detail_item => A(
+  'keyword', 'separator', 'information'
+),
 
-separator => {l=>qr/\s*\:\s*/},
+separator => L(qr/\s*\:\s*/),
 
-keyword => {
-  l=>qr/\w+/,
-  e => sub {
+keyword => L(
+  qr/\w+/,
+  E(sub {
     my $word = shift;
     if (defined $keywords{lc $word}) {
       return $keywords{lc $word};
@@ -133,23 +133,21 @@ keyword => {
     else {
       return (undef, 1);
     }
-  },
-},
+  }),
+),
 
-any_char => {
-  l=>qr/./s,
-},
+any_char => L(
+  qr/./s
+),
 
-information => {
-  m => 'any_char',
-  match_min_first => 1,
-  e => sub {
-#use Data::Dumper;
-#print STDERR "information is ".Dumper(\@_)."\n";
+information => M(
+  'any_char', MATCH_MIN_FIRST, E(
+  sub {
+#use Data::Dumper; print STDERR "information is ".Dumper(\@_)."\n";
     my $param = shift;
     if ($param->{any_char}) {return join ('',@{$param->{any_char}})};
-  }
-},
+  })
+),
 
 );
 

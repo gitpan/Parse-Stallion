@@ -12,72 +12,77 @@ use Parse::Stallion;
 # see for reference: http://tools.ietf.org/html/rfc4180
 
 my %with_header_csv_rules = (
-   file => {
-     and=>
-      ['header',
+   file => AND(
+      'header',
        'CRLF',
        'record',
-       {multiple => {and => ['CRLF', 'record']}},
-       {optional=> 'CRLF'}
-     ],
-     evaluation => sub {
+       MULTIPLE(AND('CRLF', 'record')),
+       OPTIONAL('CRLF')
+     ,
+     EVALUATION(sub {
+#use Data::Dumper;print STDERR "withhead params are ".Dumper(\@_)."\n";
        return {header => $_[0]->{header}, records => $_[0]->{record}};
      }
-    },
+    )),
 
-   header => {and=>['name', {multiple=>{and=>['COMMA', 'name']}}],
-     evaluation => sub {return $_[0]->{name}}
-    },
+   header => AND('name', MULTIPLE(AND('COMMA', 'name')),
+     EVALUATION(sub {return $_[0]->{name}}))
+    ,
 
-   record => {and=>['field', {multiple=>{and=>['COMMA', 'field']}}],
-     evaluation => sub {return $_[0]->{field}}
-    },
+   record => AND('field', MULTIPLE(AND('COMMA', 'field')),
+     EVALUATION(sub {
+#use Data::Dumper;print STDERR "record params are ".Dumper(\@_)."\n";
+       return $_[0]->{field}}))
+    ,
 
-   name => {and=>['field']},
+   name => AND('field'),
 
-   field => {or => ['escaped', 'non_escaped']},
+   field => OR('escaped', 'non_escaped'),
 
-   escaped => {and => ['DQUOTE', 'inner_escaped', 'DQUOTE'],
-      evaluation => sub {return $_[0]->{inner_escaped}}
-    },
+   escaped => AND('DQUOTE', 'inner_escaped', 'DQUOTE',
+      EVALUATION(sub {
+#use Data::Dumper;print STDERR "escaped params are ".Dumper(\@_)."\n";
+       return $_[0]->{inner_escaped}})
+    ),
 
-   inner_escaped =>{
-     multiple=>{or=>['TEXTDATA','COMMA','CRLF','DDQUOTE'],
-      rule_name => 'ie_choices'
-      },
-      evaluation => sub {
+   ie_choices=>OR('TEXTDATA','COMMA','CRLF','DDQUOTE'),
+
+   inner_escaped =>
+     MULTIPLE('ie_choices'
+      ,
+      EVALUATION(sub {
+#use Data::Dumper;print STDERR "ie params are ".Dumper(\@_)."\n";
         my $param = shift;
-#print "ie params are ".Dumper($param)."\n";
         return join('', @{$param->{'ie_choices'}});
         }
-    },
+    )),
 
-   DDQUOTE => {and=>['DQUOTE','DQUOTE'],
-      evaluation => sub {return '"'},
-   },
+   DDQUOTE => AND('DQUOTE','DQUOTE',
+      EVALUATION(sub {return '"'})
+   ),
 
-   non_escaped => {and=>['TEXTDATA']},
+   non_escaped => AND('TEXTDATA'),
 
-   COMMA => {leaf=>qr/\x2C/},
+   COMMA => LEAF(qr/\x2C/),
 
-#   CR => {leaf=>qr/\x0D/},
+#   CR => LEAF(qr/\x0D/),
 
-   DQUOTE => {leaf=>qr/\x22/},
+   DQUOTE => LEAF(qr/\x22/),
 
-#   LF => {leaf=>qr/\x0A/},
+#   LF => LEAF(qr/\x0A/),
 
-   #CRLF => {and=>['CR','LF']},
-   CRLF => {leaf=>qr/\n/,
+   #CRLF => AND('CR','LF'),
+   CRLF => LEAF(qr/\n/)
 #    evaluation =>
 #     sub {
 #      my $param = shift;
 ##      print STDERR "Parsm to crlf are ".Dumper($param)."\n";
 #      return "\n";
 #    }
-   },
+   ,
 
-   TEXTDATA => {leaf=>qr/[\x20-\x21\x23-\x2B\x2D-\x7E]+/,
-   },
+   TEXTDATA => LEAF(qr/[\x20-\x21\x23-\x2B\x2D-\x7E]+/)
+   ,
 
 );
 
@@ -85,8 +90,6 @@ sub new {
   my $self = shift;
   my $parameters = shift;
   return  new Parse::Stallion({
-    keep_white_space => 1,
-    backtrack_can_change_value => 1,
     rules_to_set_up_hash=>\%with_header_csv_rules, start_rule=>'file'});
 }
 
@@ -165,78 +168,5 @@ The grammar represented by an ABNF grammar:
    CRLF = CR LF
 
    TEXTDATA =  %x20-21 / %x23-2B / %x2D-7E
-
-=head2 GRAMMAR IMPLEMENTATION
-
-The following is the code used for handling the grammar
-
-  my %with_header_csv_rules = (
-
-   file => {
-     and=>
-      ['header',
-       'CRLF',
-       'record',
-       {multiple => {and => ['CRLF', 'record']}},
-       {optional=> 'CRLF'}
-     ],
-     evaluation => sub {
-       return {header => $_[0]->{header}, records => $_[0]->{record}};
-     }
-    },
-
-   header => {and=>['name', {multiple=>{and=>['COMMA', 'name']}}],
-     evaluation => sub {return $_[0]->{name}}
-    },
-
-   record => {and=>['field', {multiple=>{and=>['COMMA', 'field']}}],
-     evaluation => sub {return $_[0]->{field}}
-    },
-
-   name => {and=>['field']},
-
-   field => {or => ['escaped', 'non_escaped']},
-
-   escaped => {and => ['DQUOTE', 'inner_escaped', 'DQUOTE'],
-      evaluation => sub {return $_[0]->{inner_escaped}}
-    },
-
-   inner_escaped =>{
-     multiple=>{or=>['TEXTDATA','COMMA','CR','LF','DDQUOTE'],
-      rule_name => 'ie_choices'
-      },
-      evaluation => sub {
-        my $param = shift;
-        return join('', @{$param->{'ie_choices'}});
-        }
-    },
-
-   DDQUOTE => {and=>['DQUOTE','DQUOTE'],
-      evaluation => sub {return '"'},
-   },
-
-   non_escaped => {and=>['TEXTDATA']},
-
-   COMMA => {leaf=>qr/\x2C/},
-
-   CR => {leaf=>qr/\x0D/},
-
-   DQUOTE => {leaf=>qr/\x22/},
-
-   LF => {leaf=>qr/\x0A/},
-
-   CRLF => {leaf=>qr/\n/},
-
-   TEXTDATA => {leaf=>qr/[\x20-\x21\x23-\x2B\x2D-\x7E]+/,
-
-  );
-
-  sub new {
-    my $self = shift;
-    my $parameters = shift;
-    return  new Parse::Stallion({
-      rules_to_set_up_hash=>\%with_header_csv_rules,
-      start_rule=>'file'});
-  }
 
 =cut

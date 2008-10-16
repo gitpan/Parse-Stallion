@@ -5,16 +5,14 @@ BEGIN { use_ok('Parse::Stallion') };
 
 my @results_array;
 my %calculator_scan_rules = (
- start_expression => {
-   and => ['tokens', {regex_match => qr /\z/}]
-  }
+ start_expression => A(
+   'tokens', {regex_match => qr /\z/})
 ,
- tokens => {
-   multiple => ['token']
- }
+ tokens => M(
+   'token')
 ,
- token => {
-   or => ['whitespace', 
+ token => O(
+   'whitespace', 
     'comment',
     'less_than_equal',
     'greater_than_equal',
@@ -29,19 +27,16 @@ my %calculator_scan_rules = (
     'literal',
     'identifier',
     'constant',
-   ],
-  },
-whitespace => {
-   leaf => qr/\s+/,
-   evaluation => sub {}
-  },
-comment => {
-  leaf => qr/\/\*.*?\*\//,
-  evaluation => sub {}
- },
-less_than_equal => {
-  leaf => qr/\<\=?/,
-  evaluation => sub {
+   ),
+whitespace => L(
+   qr/\s+/,
+   E(sub{})),
+comment => L(
+  qr/\/\*.*?\*\//,
+  E(sub {})),
+less_than_equal => L(
+  qr/\<\=?/,
+  E(sub {
     if ($_[0] eq '<') {
       push @results_array, {token=>'less than'};
     }
@@ -49,10 +44,10 @@ less_than_equal => {
       push @results_array, {token=>'less than or equal'};
     }
   }
- },
-greater_than_equal => {
-  leaf => qr/\>\=?/,
-  evaluation => sub {
+ )),
+greater_than_equal => L(
+  qr/\>\=?/,
+  E(sub {
     if ($_[0] eq '>') {
       push @results_array, {token=>'greater than'};
     }
@@ -60,76 +55,76 @@ greater_than_equal => {
       push @results_array, {token=>'greater than or equal'};
     }
   }
- },
-equal => {
-  leaf => qr/\=/,
-  evaluation => sub {
+ )),
+equal =>
+  L(qr/\=/,
+   E(sub {
     push @results_array, {token=>'equal'};
   }
- },
-left_parenthesis => {
-  leaf => qr/\(/,
-  evaluation => sub {
+ )),
+left_parenthesis => L(
+  qr/\(/,
+  E(sub {
     push @results_array, {token=>'left parenthesis'};
   }
- },
-right_parenthesis => {
-  leaf => qr/\)/,
-  evaluation => sub {
+ )),
+right_parenthesis => L(
+  qr/\)/,
+  E( sub {
     push @results_array, {token=>'right parenthesis'};
   }
- },
-addition => {
-  leaf => qr/\+/,
-  evaluation => sub {
+ )),
+addition => L(
+  qr/\+/,
+  E(sub {
     push @results_array, {token=>'addition'};
   }
- },
-subtraction => {
-  leaf => qr/\-/,
-  evaluation => sub {
+ )),
+subtraction => L(
+  qr/\-/,
+  E(sub {
     push @results_array, {token=>'subtraction'};
   }
- },
-multiplication => {
-  leaf => qr/\*/,
-  evaluation => sub {
+ )),
+multiplication => L(
+  qr/\*/,
+  E(sub {
     push @results_array, {token=>'multiplication'};
   }
- },
-assignment => {
-  leaf => qr/\:\=/,
-  evaluation => sub {
+ )),
+assignment => L(
+  qr/\:\=/,
+  E(sub {
     push @results_array, {token=>'assignment'};
   }
- },
-semicolon => {
-  leaf => qr/\;/,
-  evaluation => sub {
+ )),
+semicolon => L(
+  qr/\;/,
+  E(sub {
     push @results_array, {token=>'assignment'};
   }
- },
-literal => {
-  leaf => qr/\"[^"]*\"/,
-  evaluation => sub {
+ )),
+literal => L(
+  qr/\"[^"]*\"/,
+  E(sub {
     my $in_literal = $_[0];
     $in_literal =~ s/\"//;
     push @results_array, {token=>'literal', value => $in_literal};
   }
- },
-identifier => {
-  leaf => qr/[a-zA-Z]\w*/,
-  evaluation => sub {
+ )),
+identifier => L(
+  qr/[a-zA-Z]\w*/,
+  E(sub {
     push @results_array, {token=>'identifier', value => $_[0]};
   }
- },
-constant => {
-  leaf => qr/\d+/,
-  evaluation => sub {
+ )),
+constant => L(
+  qr/\d+/,
+  E(sub {
 #print STDERR "constant of ".$_[0]."\n";
     push @results_array, {token=>'constant', value => $_[0]};
   }
- }
+ ))
 );
 
 my $calculator_scan_parser = new Parse::Stallion({

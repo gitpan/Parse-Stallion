@@ -6,9 +6,9 @@ use Time::Local;
 #use Data::Dumper;
 
 my %rule;
-$rule{start_date} = {
-  and => ['parsed_date', 'end_of_string'],
-  evaluation => sub {
+$rule{start_date} = AND(
+  'parsed_date', 'end_of_string',
+  EVALUATION (sub {
 #use Data::Dumper; print STDERR "params to start date are ".Dumper(\@_)."\n";
     my $seconds_since_epoch = $_[0]->{parsed_date};
     my ($seconds, $minutes, $hour, $mday, $month, $year) =
@@ -21,38 +21,38 @@ $rule{start_date} = {
     if ($hour < 10) { $hour = '0'.$hour;};
     return (1900+$year).$month.$mday.$hour.$minutes.$seconds;
   }
-};
-$rule{parsed_date} = {
-  or => ['date', 'date_operation'],
-};
-$rule{date_operation} = {
-  or => ['add_time', 'subtract_time'],
-};
-$rule{add_time} = {
-  and => ['date', 'plus', 'time'],
-  evaluation => sub {return $_[0]->{date} + $_[0]->{time}}
-};
-$rule{subtract_time} = {
-  and => ['date', 'minus', 'time'],
-  evaluation => sub {
+));
+$rule{parsed_date} = OR(
+  'date', 'date_operation')
+;
+$rule{date_operation} = OR(
+  'add_time', 'subtract_time')
+;
+$rule{add_time} = AND(
+  'date', 'plus', 'time',
+  E(sub {return $_[0]->{date} + $_[0]->{time}}))
+;
+$rule{subtract_time} = A(
+  'date', 'minus', 'time',
+  E(sub {
 #use Data::Dumper; print STDERR 'params to subtract time are '.Dumper(\@_)."\n";
-   return $_[0]->{date} - $_[0]->{time}}
-};
-$rule{date} = {
-  or => ['standard_date', 'special_date']
-};
-$rule{end_of_string} = {
-  regex_match => qr/\z/,
-};
-$rule{plus} = {
-  regex_match => qr/\s*\+\s*/,
-};
-$rule{minus} = {
-  regex_match => qr/\s*\-\s*/,
-};
-$rule{standard_date} = {
-  regex_match => qr(\d+\/\d+\/\d+),
-  evaluation => sub {my $date = $_[0];
+   return $_[0]->{date} - $_[0]->{time}}))
+;
+$rule{date} = OR(
+  'standard_date', 'special_date')
+;
+$rule{end_of_string} = LEAF(
+  qr/\z/
+);
+$rule{plus} = LEAF(
+  qr/\s*\+\s*/
+);
+$rule{minus} = LEAF(
+  qr/\s*\-\s*/
+);
+$rule{standard_date} = LEAF(
+  qr(\d+\/\d+\/\d+),
+  E(sub {my $date = $_[0];
 #use Data::Dumper; print STDERR 'params to standard date are '.Dumper(\@_)."\n";
     $date =~ /(\d+)\/(\d+)\/(\d+)/;
     my $month = $1 -1;
@@ -60,25 +60,25 @@ $rule{standard_date} = {
     my $year = $3;
     return timegm(0,0,0,$mday, $month, $year);
   },
-};
-$rule{special_date} = {
-  regex_match => qr/now/i,
-  evaluation => sub {return timegm(24,40,0,5, 7, 2007);},
-};
-$rule{time} = {
-  or => ['just_time', 'just_time_plus_list', 'just_time_minus_list']
-};
-$rule{just_time_plus_list} = {
-  and => ['just_time', 'plus', 'time'],
-  evaluation => sub {return $_[0]->{just_time} + $_[0]->{time}}
-};
-$rule{just_time_minus_list} = {
-  and => ['just_time', 'minus', 'time'],
-  evaluation => sub {return $_[0]->{just_time} - $_[2]->{time}}
-};
-$rule{just_time} = {
-  regex_match => qr(\d+\s*[hdms])i,
-  evaluation => sub {
+));
+$rule{special_date} = LEAF(
+  qr/now/i,
+  E(sub {return timegm(24,40,0,5, 7, 2007);}
+));
+$rule{time} = OR(
+  'just_time', 'just_time_plus_list', 'just_time_minus_list')
+;
+$rule{just_time_plus_list} = AND(
+  'just_time', 'plus', 'time',
+  E(sub {return $_[0]->{just_time} + $_[0]->{time}})
+);
+$rule{just_time_minus_list} = AND(
+  'just_time', 'minus', 'time',
+  E(sub {return $_[0]->{just_time} - $_[2]->{time}})
+);
+$rule{just_time} = LEAF(
+  qr(\d+\s*[hdms])i,
+  E(sub {
 #use Data::Dumper; print STDERR 'params to just time are '.Dumper(\@_)."\n";
     my $to_match = $_[0];
     $to_match =~ /(\d+)\s*([hdms])/i;
@@ -96,8 +96,8 @@ $rule{just_time} = {
     if (lc $unit eq 'm') {
       return $1 * 60;
     }
-  }
-};
+  })
+);
 
 my $date_parser = new Parse::Stallion({
   rules_to_set_up_hash => \%rule,

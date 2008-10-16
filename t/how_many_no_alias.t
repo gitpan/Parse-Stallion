@@ -5,23 +5,23 @@ BEGIN { use_ok('Parse::Stallion') };
 #use Data::Dumper; print STDERR "hi\n";
 
 my %parsing_rules = (
- start_expression => {
-  and => ['two_statements', {leaf => qr/\z/}],
-  evaluation => sub {return $_[0]->{'two_statements'}},
- },
- two_statements => {
-   and=> ['list_statement','truth_statement'],
-   evaluation => sub {
+ start_expression => A(
+  'two_statements', L(qr/\z/),
+  E(sub {return $_[0]->{'two_statements'}})
+ ),
+ two_statements => A(
+   'list_statement','truth_statement',
+   E(sub {
 #print STDERR "two stat input is ".Dumper(\@_)."\n";
      if ($_[0]->{list_statement} != $_[0]->{truth_statement}) {
        return (undef, 1);
      }
      return 1;
-   }
- },
- list_statement => {
-   and => ['count_statement', 'list'],
-   evaluation => sub {
+   })
+ ),
+ list_statement => A(
+   'count_statement', 'list',
+   E(sub {
 #print STDERR "input is now ".Dumper(\@_);
      if ($_[0]->{count_statement} == scalar(@{$_[0]->{list}})) {
 #print STDERR "returning 1\n";
@@ -29,34 +29,34 @@ my %parsing_rules = (
      }
 #print STDERR "returning 0\n";
      return 0;
-   }
- },
- count_statement => {
-   and => [{leaf=>qr/there are /i},'number',{l=>qr/ elements in /}],
-   evaluation => sub {
+   })
+ ),
+ count_statement => A(
+   L(qr/there are /i),'number',L(qr/ elements in /),
+   E(sub {
      return $_[0]->{number};
-   }
-  },
- number => {
-  leaf=>qr/\d+/,
-   evaluation => sub { return 0 + shift; }
- },
- list => {and => ['number', {m=>{and=>[{l=>qr/\,/}, 'number']}}],
-  evaluation => sub {
+   })
+  ),
+ number => L(
+  qr/\d+/,
+   E(sub { return 0 + shift; })
+ ),
+ list => A('number', M(A(L(qr/\,/), 'number')),
+  E(sub {
     #use Data::Dumper;print STDERR "list input is ".Dumper(\@_)."\n";
-    return $_[0]->{number}}
- },
- truth_statement => {
-   or => [[{l=>qr/\. that is the truth\./},'x'],
-    [{l=>qr/\. that is not the truth\./},'x']],
-   evaluation => sub {
+    return $_[0]->{number}})
+ ),
+ truth_statement => O(
+   {x=>L(qr/\. that is the truth\./)},
+   {x=>L(qr/\. that is not the truth\./)},
+   E(sub {
      #use Data::Dumper; print STDERR "ts input is ".Dumper(\@_)."\n";
      if ($_[0]->{'x'} =~ /not/) {
        return 0;
      }
      return 1;
-   }
- },
+   })
+ ),
 );
 
 my $how_many_parser = new Parse::Stallion({

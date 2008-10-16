@@ -3,15 +3,15 @@
 use Parse::Stallion;
 
 my %calculator_rules = (
- start_expression => {
-   and => ['expression', 'end_of_string'],
-   evaluation => sub {return $_[0]->{expression}},
-  }
+ start_expression => A(
+   'expression', 'end_of_string',
+   E(sub {return $_[0]->{expression}})
+  )
 ,
- expression => {
-   and => ['term', 
-    {multiple => {and => ['plus_or_minus', 'term'],},},],
-   evaluation => sub {my $to_combine = $_[0]->{term};
+ expression =>
+   A('term', 
+    M(A('plus_or_minus', 'term')),
+    E(sub {my $to_combine = $_[0]->{term};
     my $plus_or_minus = $_[0]->{plus_or_minus};
     my $value = shift @$to_combine;
     for my $i (0..$#{$to_combine}) {
@@ -23,13 +23,13 @@ my %calculator_rules = (
       }
     }
     return $value;
-   },
-  },
+   })
+  ),
 ,
- term => {
-   and => ['factor', 
-    {multiple => {and => ['times_or_divide_or_modulo', 'factor'],},},],
-   evaluation => sub {my $to_combine = $_[0]->{factor};
+ term =>
+   A('factor', 
+    M (A('times_or_divide_or_modulo', 'factor')),
+    E(sub {my $to_combine = $_[0]->{factor};
     my $times_or_divide_or_modulo = $_[0]->{times_or_divide_or_modulo};
     my $value = shift @$to_combine;
     for my $i (0..$#{$to_combine}) {
@@ -45,85 +45,51 @@ my %calculator_rules = (
       }
     }
     return $value;
-   },
-  },
+   })
+  ),
 ,
- factor => {
-   and => ['fin_exp', 
-    {multiple => {and => ['power_of', 'fin_exp'],},},],
-   evaluation => sub {my $to_combine = $_[0]->{fin_exp};
+ factor =>
+   A('fin_exp', 
+    M (A( 'power_of', 'fin_exp')),
+    E(sub {my $to_combine = $_[0]->{fin_exp};
     my $value = pop @$to_combine;
     while ($#{$to_combine} > -1) {
       $value = (pop @$to_combine) ** $value;
     }
     return $value;
-   },
-  },
+   })
+  ),
 ,
-fin_exp => {
-  or => [
-    {and => ['left_parenthesis', 'expression', 'right_parenthesis'],
-     evaluation => sub {return $_[0]->{expression} },
-     precedence => 0,
-    },
-    {and => ['number'],
-     evaluation => sub {return $_[0]->{number} },
-     precedence => 0,
-    },
-   ],
-  },
+fin_exp =>
+  O(A('left_parenthesis', 'expression', 'right_parenthesis',
+     E(sub {return $_[0]->{expression} })
+    ),
+    A('number',
+     E(sub {return $_[0]->{number} })
+    ),
+   )
 ,
-end_of_string => {
-  regex_match => qr/\z/,
- },
-,
-number => {
-  regex_match => qr/\s*[+-]?(\d+(\.\d*)?|\.\d+)\s*/,
-  evaluation => sub{
+end_of_string => qr/\z/,
+number => L(
+  qr/\s*[+-]?(\d+(\.\d*)?|\.\d+)\s*/,
+  E(sub{
    return 0 + $_[0];
-  },
- },
+  })
+ )
 ,
-left_parenthesis => {
-  regex_match => qr/\s*\(\s*/,
- },
+left_parenthesis => qr/\s*\(\s*/,
+right_parenthesis => qr/\s*\)\s*/,
+power_of => qr/\s*\*\*\s*/,
+plus_or_minus =>
+  O('plus', 'minus'),
+plus => qr/\s*\+\s*/,
+minus => qr/\s*\-\s*/,
+times_or_divide_or_modulo =>
+  O('times', 'divided_by', 'modulo')
 ,
-right_parenthesis => {
-  regex_match => qr/\s*\)\s*/,
- },
-,
-power_of => {
-  regex_match => qr/\s*\*\*\s*/,
- },
-,
-plus_or_minus => {
-  or => ['plus', 'minus'],
- },
-,
-plus => {
-  regex_match => qr/\s*\+\s*/,
- },
-,
-minus => {
-  regex_match => qr/\s*\-\s*/,
- },
-,
-times_or_divide_or_modulo => {
-  or => ['times', 'divided_by', 'modulo'],
- },
-,
-modulo => {
-  regex_match => qr/\s*\%\s*/,
- },
-,
-times => {
-  regex_match => qr/\s*\*\s*/,
- },
-,
-divided_by => {
-  regex_match => qr/\s*\/\s*/,
- },
-,
+modulo => qr/\s*\%\s*/,
+times => qr/\s*\*\s*/,
+divided_by => qr/\s*\/\s*/
 );
 
 my $calculator_parser = new Parse::Stallion({
@@ -142,7 +108,7 @@ print "should be 31, result is $result\n";
 
 ($result, $parse_info) = $calculator_parser->parse_and_evaluate("3+-+7*4");
 
-print "should be 1, Parse failed: ".$parse_info->{parse_failed}."\n";
+print "should be 0, Parse succeeded: ".$parse_info->{parse_succeeded}."\n";
 
 print "\nAll done\n";
 

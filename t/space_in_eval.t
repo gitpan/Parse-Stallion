@@ -6,9 +6,9 @@ use Time::Local;
 #use Data::Dumper;
 
 my %rule;
-$rule{start_rule} = { rule_type => 'and',
-  and => ['white_space_word', 'end_of_string'],
-  evaluation => sub {
+$rule{start_rule} =
+  A('white_space_word', 'end_of_string',
+  E(sub {
     my $param = shift;
 #use Data::Dumper;print STDERR "param in to start rule is ".Dumper($param)."\n";
     if ($param->{white_space_word} =~ /\s/) {
@@ -17,14 +17,14 @@ $rule{start_rule} = { rule_type => 'and',
     else {
       return "no white space";
     }
-  }
-};
-$rule{white_space_word} = { 
-  leaf => qr/\s+\w+\s+/,
-};
-$rule{end_of_string} = {
-  leaf => qr/\z/,
-};
+  })
+);
+$rule{white_space_word} =
+  L(qr/\s+\w+\s+/
+);
+$rule{end_of_string} =
+  L(qr/\z/
+);
 my ($result_1, $result_2);
 
 my $after_parser = new Parse::Stallion({

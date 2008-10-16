@@ -5,37 +5,37 @@ use Carp;
 BEGIN { use_ok('Parse::Stallion') };
 
 my %calculator_rules = (
- start_expression => {
-   and => ['expression', 'end_of_string'],
-   evaluation => sub {return $_[0]->{expression}},
-  }
+ start_expression => A(
+   'expression', 'end_of_string',
+   E(sub {return $_[0]->{expression}})
+  )
 ,
- expression => {
-   and => ['expression', 'plus_or_minus', 'number'],
-   }
+ expression => A(
+   'expression', 'plus_or_minus', 'number'
+   )
 ,
-end_of_string => {
-  regex_match => qr/\z/,
- },
+end_of_string => L(
+  qr/\z/
+ ),
 ,
-number => {
-  regex_match => qr/\s*[+-]?(\d+(\.\d*)?|\.\d+)\s*/,
-  evaluation => sub{
+number => L(
+  qr/\s*[+-]?(\d+(\.\d*)?|\.\d+)\s*/,
+  E(sub{
    return 0 + $_[0];
-  },
- },
+  })
+ ),
 ,
-plus_or_minus => {
-  or => ['plus', 'minus'],
- },
+plus_or_minus => O(
+  'plus', 'minus'
+ ),
 ,
-plus => {
-  regex_match => qr/\s*\+\s*/,
- },
+plus => L(
+  qr/\s*\+\s*/
+ ),
 ,
-minus => {
-  regex_match => qr/\s*\-\s*/,
- },
+minus => L(
+  qr/\s*\-\s*/
+ ),
 );
 
 my $calculator_parser = new Parse::Stallion({
@@ -50,29 +50,29 @@ my $result =
 like ($@, qr/^expression duplicated in parse/,'invalid grammar 1');
 
 my %empty_rules = (
- start_expression => {
-   and => ['expression', 'end_of_string'],
-   evaluation => sub {return $_[0]->{expression}},
-  }
+ start_expression => A(
+   'expression', 'end_of_string',
+   E(sub {return $_[0]->{expression}}),
+  )
 ,
- expression => {
-   and => ['empty', 'expression', 'number'],
-   }
+ expression => A(
+   'empty', 'expression', 'number'
+   )
 ,
-end_of_string => {
-  regex_match => qr/\z/,
- },
+end_of_string => L(
+  qr/\z/
+ ),
 ,
-number => {
-  regex_match => qr/\s*[+-]?(\d+(\.\d*)?|\.\d+)\s*/,
-  evaluation => sub{
+number => L(
+  qr/\s*[+-]?(\d+(\.\d*)?|\.\d+)\s*/,
+  E(sub{
    return 0 + $_[0];
-  },
- },
+  })
+ )
 ,
-empty => {
-  regex_match => qr/^/,
- },
+empty => L(
+  qr/^/
+ )
 ,
 );
 
@@ -88,40 +88,38 @@ my $result =
 like ($@, qr/^expression duplicated in parse/,'invalid grammar 2');
 
 my %third_calculator_rules = (
- start_expression => {
-   and => ['expression', 'end_of_string'],
-   evaluation => sub {return $_[0]->{expression}},
-  }
+ start_expression => A(
+   'expression', 'end_of_string',
+   E(sub {return $_[0]->{expression}}),
+  )
 ,
- expression => {
-   or => [
- { and  => ['number', 'plus_or_minus', 'expression']},
+ expression => O(
+ A('number', 'plus_or_minus', 'expression'),
 'number',
-   ]
-   }
+   )
 ,
-end_of_string => {
-  regex_match => qr/\z/,
- },
+end_of_string => L(
+  qr/\z/
+ )
 ,
-number => {
-  regex_match => qr/\s*[+-]?(\d+(\.\d*)?|\.\d+)\s*/,
-  evaluation => sub{
+number => L(
+  qr/\s*[+-]?(\d+(\.\d*)?|\.\d+)\s*/,
+  E(sub{
    return 0 + $_[0];
-  },
- },
+  })
+ )
 ,
-plus_or_minus => {
-  or => ['plus', 'minus'],
- },
+plus_or_minus => O(
+  'plus', 'minus'
+ )
 ,
-plus => {
-  regex_match => qr/\s*\+\s*/,
- },
+plus => L(
+  qr/\s*\+\s*/
+ )
 ,
-minus => {
-  regex_match => qr/\s*\-\s*/,
- },
+minus => L(
+  qr/\s*\-\s*/
+ )
 );
 
 my $third_calculator_parser = new Parse::Stallion({
@@ -142,10 +140,10 @@ is ($result->{parse_succeeded}, 1, 'third calculator number');
 is ($result->{parse_succeeded}, 1, 'third calculator number plus number');
 
 my %bad_rule_set = (
- start_expression => {
-   and => ['expression'],
-   evaluation => sub {return $_[0]->{expression}},
-  }
+ start_expression => A(
+   'expression',
+   E(sub {return $_[0]->{expression}})
+  )
 );
 
 my $bad_parser = eval {new Parse::Stallion({
@@ -156,15 +154,14 @@ my $bad_parser = eval {new Parse::Stallion({
 like ($@, qr/^Missing rules: Rule start_expression missing /,'missing rule');
 
 my %bad_rule_set_2 = (
- start_expression => {
-   and => ['expression'],
-  },
- expression => {
-   leaf => qr/AA/,
-  },
- junk_rule => {
-   leaf => qr/BB/,
-  },
+ start_expression => A(
+   'expression'
+  ),
+ expression =>
+   qr/AA/
+  ,
+ junk_rule =>
+   qr/BB/
 );
 
 my $bad_parser_2 = eval {new Parse::Stallion({

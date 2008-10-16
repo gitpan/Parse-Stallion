@@ -9,6 +9,7 @@ example/csvfh.data
 example/date_parsing.pl
 example/how_many.pl
 t/alias_test.t
+t/basic_simple_calc.t
 t/calc_scan_with_no_end.t
 t/calculator_parsing.t
 t/calculator_no_eval.t
@@ -22,10 +23,12 @@ t/empty.t
 t/event.t
 t/how_many.t
 t/how_many_no_alias.t
+t/in_doc.t
 t/look_at_tree.t
 t/min_multiple.t
 t/object_string.t
 t/parser_within_parser.t
+t/parsexml.t
 t/parsing_evaluation.t
 t/program.t
 t/simp.t
@@ -34,4 +37,5 @@ t/space_in_eval.t
 lib/Parse/Stallion.pm
 lib/Parse/Stallion/CSV.pm
 lib/Parse/Stallion/CSVFH.pm
+lib/Parse/Stallion/EBNF.pm
 META.yml                                 Module meta-data (added by MakeMaker)

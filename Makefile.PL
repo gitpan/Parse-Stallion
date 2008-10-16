@@ -11,5 +11,5 @@ WriteMakefile(
     }, # e.g., Module::Name => 1.1
     ($] >= 5.005 ?     ## Add these new keywords supported since 5.005
       (ABSTRACT_FROM  => 'lib/Parse/Stallion.pm', # retrieve abstract from module
-       AUTHOR         => 'Arthur Goldstein <arthur@acm.orc>') : ()),
+       AUTHOR         => 'Arthur Goldstein <arthur@acm.org>') : ()),
 );
