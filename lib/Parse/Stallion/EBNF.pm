@@ -67,7 +67,7 @@ __END__
 
 =head1 NAME
 
-Parse::Stallion::EBNF - Output parser in Extended Backus Normal Form.
+Parse::Stallion::EBNF - Output parser in Extended Backus Naur Form.
 
 =head1 SYNOPSIS
 

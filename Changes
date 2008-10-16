@@ -1,5 +1,8 @@
 Revision history for Perl extension Parse::Stallion.
 
+0.11
+     fixed name in description of module
+
 0.1
      additions to the documentation on parsing during evaluation
 

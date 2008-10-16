@@ -5,7 +5,7 @@ use Carp;
 use strict;
 use warnings;
 use 5.006;
-our $VERSION = '0.1';
+our $VERSION = '0.11';
 
 sub new {
   my $type = shift;
@@ -1729,7 +1729,7 @@ as an array, if the value is 0, it would be passed as a scalar.
 
 =head2 PARSING NON-STRINGS
 
-In order to parse non-strings, one should use NON_LEAF_STRING (or N)
+In order to parse non-strings, use NON_LEAF_STRING (or N)
 instead of LEAF (or L) for defining the leaves.
 
 Four subroutines should be provided: an increasing_value function for ensuring
@@ -1772,20 +1772,21 @@ equal to ''.  The latter is the condition that parsing strings must match.
   });
 
 When evaluating the parse tree, the parameters to the B<'leaf'> nodes are
-the values returned in parse_foward, $value_to_store_in_leaf_node.
+the values returned in parse_forward, $value_to_store_in_leaf_node.
+These values are joined together for parse_match.
 
-The test case, object_string.t shows how to use this.
+The script object_string.pl in the example directory shows how to use this.
 
 =head3 B<'LEAF'> LEAF PARSE FORWARD/BACKTRACK
 
-All B<'leaf'> rules need to be set up such that when the
-parser is moving forward and reaches a B<'leaf'>, the
+All B<'leaf'> rules need to be set up such that when the parser is moving
+forward and reaches a B<'leaf'>, the
 B<'leaf'> rule attempts to match the current input object.
 If there is a match, then the input object is modified
 to the object's next state and a value is stored to be called upon
 later during tree evaluation.
 
-When backtracking, the input object should be reverted to
+When backtracking, the object being parsed should be reverted to
 the state before being matched by the B<'leaf'> rule.
 
 In parsing a string, substrings are removed from the beginning of the
