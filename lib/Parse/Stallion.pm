@@ -5,7 +5,7 @@ use Carp;
 use strict;
 use warnings;
 use 5.006;
-our $VERSION = '0.11';
+our $VERSION = '0.2';
 
 sub new {
   my $type = shift;
@@ -264,7 +264,7 @@ sub inner_create_child {
   my $current_value =
    &{$parsing_info->{increasing_value}}($parsing_info->{object_being_parsed});
 
-  if (!defined $parsing_info->{rule}->{$child_rule_name}->{leaf_info}) {
+  if ($parsing_info->{rule}->{$child_rule_name}->{rule_type} ne 'LEAF') {
     if ($parsing_info->{active_rules_values}->{$child_rule_name.
      $parsing_info->{separator}.$parsing_info->{separator}.
      $parsing_info->{current_value}}++) {
@@ -365,10 +365,10 @@ sub move_back_to_youngest_child_or_remove_node {
 sub handle_inner_rule_moving_down {
   my $parsing_info = shift;
   if ($parsing_info->{moving_forward}) {
-    if (defined $parsing_info->{current_rule}->{leaf_info}) {
+    if ($parsing_info->{current_rule}->{rule_type} eq 'LEAF') {
       $parsing_info->{message} = 'Leaf not matched';
       my ($able_to_modify, $match) =
-       &{$parsing_info->{leaf_parse_forward}}
+       &{$parsing_info->{current_rule}->{parse_forward}}
        (\$parsing_info->{object_being_parsed},
         $parsing_info->{current_rule}->{leaf_info}
        );
@@ -404,15 +404,23 @@ sub handle_inner_rule_moving_down {
     if ($parsing_info->{rejected}) {
       $parsing_info->{rejected} = 0;
     }
-    if ($parsing_info->{current_rule}->{leaf_info}) {
-      &{$parsing_info->{leaf_parse_backtrack}}
+    if ($parsing_info->{current_rule}->{rule_type} eq 'LEAF') {
+      my $end_parse_now =
+       &{$parsing_info->{current_rule}->{parse_backtrack}}
        (\$parsing_info->{object_being_parsed},
         $parsing_info->{current_rule}->{leaf_info},
         $parsing_info->{current_node}->{values}->{parse_match}
        );
       $parsing_info->{current_value} = &{$parsing_info->{increasing_value}}
        ($parsing_info->{object_being_parsed});
-      $parsing_info->remove_node_from_parse;
+      if ($end_parse_now) {
+        $parsing_info->{current_node} = undef;
+        $parsing_info->{moving_forward} = 0;
+        return;
+      }
+      else {
+        $parsing_info->remove_node_from_parse;
+      }
     }
     elsif ($parsing_info->{current_rule}->{minimize_children}) {
       $parsing_info->inner_create_child;
@@ -460,8 +468,9 @@ package Parse::Stallion;
 require Exporter;
 our @ISA = qw(Exporter);
 our @EXPORT =
- qw(A AND O OR LEAF L M MULTIPLE NON_STRING_LEAF N OPTIONAL ZERO_OR_ONE Z
-    E EVALUATION U UNEVALUATION MATCH_MIN_FIRST USE_PARSE_MATCH);
+ qw(A AND O OR LEAF L M MULTIPLE OPTIONAL ZERO_OR_ONE Z
+    E EVALUATION U UNEVALUATION PF PARSE_FORWARD PB PARSE_BACKTRACK
+    LEAF_DISPLAY MATCH_MIN_FIRST USE_PARSE_MATCH);
 use strict;
 use warnings;
 use Carp;
@@ -490,6 +499,7 @@ sub reverse_match_with_add {
   my $rule_info = shift;
   my $stored_value = shift;
   $$object_being_parsed = $stored_value.$$object_being_parsed;
+  return;
 }
 
 sub display_value {
@@ -586,6 +596,20 @@ sub uneval_sub {
 sub U {uneval_sub(@_)}
 sub UNEVALUATION {uneval_sub(@_)}
 
+sub parse_forward_sub {
+  return ['PARSE_FORWARD', @_];
+}
+
+sub PF {parse_forward_sub(@_)}
+sub PARSE_FORWARD {parse_forward_sub(@_)}
+
+sub parse_backtrack_sub {
+  return ['PARSE_BACKTRACK', @_];
+}
+
+sub PB {parse_backtrack_sub(@_)}
+sub PARSE_BACKTRACK {parse_backtrack_sub(@_)}
+
 sub match_min_first {
   return ['MATCH_MIN_FIRST'];
 }
@@ -612,12 +636,8 @@ sub or_sub {
 sub OR {or_sub(@_)}
 sub O {or_sub(@_)}
 
-sub N {
-  return ['LEAF', $_[0]];
-}
-
-sub NON_STRING_LEAF {
-  return ['LEAF', $_[0]];
+sub LEAF_DISPLAY {
+  return ['LEAF_DISPLAY', $_[0]];
 }
 
 sub leaf {
@@ -631,7 +651,12 @@ sub leaf {
       push @p, $parm;
     }
   }
-  return ['LEAF', {regex_match => $p[0]}, @q];
+  if (ref $p[0] eq 'Regexp') {
+    return ['LEAF', {regex_match => $p[0]}, LEAF_DISPLAY($p[0]), @q];
+  }
+  else {
+    return ['LEAF', @p, @q];
+  }
 }
 
 sub LEAF {leaf(@_)}
@@ -710,6 +735,10 @@ sub add_rule {
     $rule = AND($rule);
   }
 
+  if (ref $rule ne 'ARRAY') {
+    croak ("Bad format of rule $rule_name, cannot create.");
+  }
+
   my $base_rule = $rule_name;
   if (defined $parameters->{generated_name}) {
     $self->{rule}->{$rule_name}->{generated} = 1;
@@ -719,7 +748,8 @@ sub add_rule {
   my @copy_of_rule; #to prevent changing input
   foreach my $sub_rule (@$rule) {
     if (ref $sub_rule eq 'ARRAY' && $sub_rule->[0] eq 'EVAL') {
-      $self->{rule}->{$rule_name}->{parsing_evaluation} = $sub_rule->[1];
+      $self->{rule}->{$rule_name}->{parsing_evaluation} = $sub_rule->[1]
+       || croak ("Rule $rule_name Illegal evaluation routine");
     }
     elsif (ref $sub_rule eq 'ARRAY' && $sub_rule->[0] eq 'UNEVAL') {
       $self->{rule}->{$rule_name}->{parsing_unevaluation} = $sub_rule->[1];
@@ -728,11 +758,19 @@ sub add_rule {
     elsif (ref $sub_rule eq 'ARRAY' && $sub_rule->[0] eq 'MATCH_MIN_FIRST') {
       $self->{rule}->{$rule_name}->{minimize_children} = 1;
     }
+    elsif (ref $sub_rule eq 'ARRAY' && $sub_rule->[0] eq 'LEAF_DISPLAY') {
+      $self->{rule}->{$rule_name}->{leaf_display} = $sub_rule->[1];
+    }
     elsif (ref $sub_rule eq 'ARRAY' && $sub_rule->[0] eq 'USE_PARSE_MATCH') {
       $self->{rule}->{$rule_name}->{use_parse_match} = 1;
     }
-    elsif (ref $sub_rule eq 'CODE') {
-      $self->{rule}->{$rule_name}->{parsing_evaluation} = $sub_rule;
+    elsif (ref $sub_rule eq 'ARRAY' && $sub_rule->[0] eq 'PARSE_FORWARD') {
+      $self->{rule}->{$rule_name}->{parse_forward} = $sub_rule->[1]
+      || croak ("Rule $rule_name Illegal parse_forward routine");
+    }
+    elsif (ref $sub_rule eq 'ARRAY' && $sub_rule->[0] eq 'PARSE_BACKTRACK') {
+      $self->{rule}->{$rule_name}->{parse_backtrack} = $sub_rule->[1]
+      || croak ("Rule $rule_name Illegal parse_backtrack routine");
     }
     else {
       push @copy_of_rule, $sub_rule;
@@ -742,6 +780,12 @@ sub add_rule {
    shift @copy_of_rule;
   if ($rule_type eq 'LEAF') {
     $self->{rule}->{$rule_name}->{leaf_info} = shift @copy_of_rule;
+    $self->{rule}->{$rule_name}->{parse_forward} =
+     $self->{rule}->{$rule_name}->{parse_forward} ||
+     $self->{leaf_parse_forward};
+    $self->{rule}->{$rule_name}->{parse_backtrack} =
+     $self->{rule}->{$rule_name}->{parse_backtrack} ||
+     $self->{leaf_parse_backtrack};
     $self->{rule}->{$rule_name}->{use_parse_match} = 1;
   }
   else {
@@ -758,7 +802,7 @@ sub add_rule {
       $self->{rule}->{$rule_name}->{maximum_child} = shift @copy_of_rule;
     }
     else {
-      croak "Bad rule type $rule_type\n";
+      croak "Bad rule type $rule_type on rule $rule_name\n";
     }
     foreach my $current_rule (@copy_of_rule) {
       my ($alias, $name);
@@ -1210,6 +1254,8 @@ Examples (equivalent):
 
 would match any perl word (\w+) starting with "xx".
 
+See the section B<'LEAF DETAILS'> for other ways to handle leaves.
+
 =head3 AND
 
 An B<'AND'> rule contains a list of subrules that must be completely matched,
@@ -1251,7 +1297,7 @@ shortened, else it would be considered an illegal form of "left recursion".
 By default the maximal number of possible matches of the repeating
 rule are tried and then if backtracking occurs, the number of matches is
 decremented.
-If the parameter 'MATCH_MIN_FIRST' is passed in, the minimal number of matches
+If the parameter 'MATCH_MIN_FIRST()' is passed in, the minimal number of matches
 is tried first and the number of matches increases when backtracking.
 
 Examples (equivalent):
@@ -1285,7 +1331,7 @@ The following rules all parse tree-wise equivalently.
 
   MULTIPLE('subrule', 1, 1)
 
-  M('subrule', 1, 1, MATCH_MIN_FIRST)
+  M('subrule', 1, 1, MATCH_MIN_FIRST())
 
 =head3 NESTED RULES
 
@@ -1727,15 +1773,50 @@ as an array, if the value is 0, it would be passed as a scalar.
     rule_name => 'start_expression'});
   # $array_p would be {expression => 0}
 
+=head2 LEAF DETAILS
+
+Leafs can be set up as follows:
+
+  LEAF($leaf_arg, PARSE_FORWARD(sub{...}), PARSE_BACKTRACK(sub{...}),
+   EVALUATION(sub{...}), UNEVALUATION(sub{...}), DISPLAY($display));
+
+If $leaf_arg is a Regexp, it is converted into a hash ref:
+{regex_match => $leaf_arg} for internal purposes.
+
+If PARSE_FORWARD and PARSE_BACKTRACK are not provided, they use the
+default parse_forward and parse_backtrack subroutines.
+
+The subroutine in PARSE_FORWARD (or PF) is called when moving forwards
+during the parse.  It is given 2 arguments, a reference to the object
+being parsed and $leaf_arg  (or {regex_match => $leaf_arg} ).
+It should return 1 and a value to store if the parsing should continue
+forward.  Else it should return 0.  It is expected that this subroutine
+may modify the parse, i.e. remove the matched string from the front of
+the string with the returned value to store the matched string.
+
+The subroutine in PARSE_BACKTRACK (or PB) is called when backtracking
+through a leaf.  It is given 3 arguments: a reference to the object
+being parsed, $leaf_arg (or {regex_match => $leaf_arg}), and the
+value that was stored when moving forward.
+It should return false.  If it returns true, then the parsing ends in
+failure.  This can be used to set up a rule
+
+  pass_this_no_backtrack => L(qr//,PB(sub{return 1}))
+
+that if encountered during parsing means that no backtracking will occur
+previous to this rule.
+
+The string $display is used in the related module Parse::Stallion::EBNF
+as to the string to show for the leaf rule.
+
+EVALUATION and UNEVALUATION are explained in the section B<'EVALUATION'>.
+
 =head2 PARSING NON-STRINGS
 
-In order to parse non-strings, use NON_LEAF_STRING (or N)
-instead of LEAF (or L) for defining the leaves.
-
 Four subroutines should be provided: an increasing_value function for ensuring
-parsing is proceeding correctly, a B<'leaf'>
+parsing is proceeding correctly, a default B<'leaf'>
 rule matcher/modifier for when the parser is moving forward,
-a B<'leaf'> rule unmodifier for when the parser is backtracking,
+a default B<'leaf'> rule unmodifier for when the parser is backtracking,
 an increasing_value_function to prevent "left recursion",
 and a display_value function for the parse_trace.
 
@@ -1836,6 +1917,7 @@ By default, strings are matched, which is similar to
       if (defined $stored_value) {
         $$input_string_ref = $stored_value.$$input_string_ref;
       }
+      return;
      },
 
     increasing_value_function => sub {
@@ -1854,8 +1936,9 @@ By default, strings are matched, which is similar to
 
 The following are EXPORTED from this module:
 
-A AND O OR LEAF L M MULTIPLE NON_STRING_LEAF N OPTIONAL ZERO_OR_ONE Z
-E EVALUATION U UNEVALUATION MATCH_MIN_FIRST USE_PARSE_MATCH
+ A AND O OR LEAF L M MULTIPLE OPTIONAL ZERO_OR_ONE Z
+ E EVALUATION U UNEVALUATION PF PARSE_FORWARD PB PARSE_BACKTRACK
+ LEAF_DISPLAY MATCH_MIN_FIRST USE_PARSE_MATCH
 
 =head1 PERL Requirements
 
@@ -1867,6 +1950,10 @@ of those modules is required outside of the test cases for installation.
 =head1 AUTHOR
 
 Arthur Goldstein, E<lt>arthur@acm.orgE<gt>
+
+=head1 ACKNOWLEDGEMENTS
+
+Damian Conway and Greg London. 
 
 =head1 COPYRIGHT AND LICENSE
 

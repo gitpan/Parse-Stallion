@@ -20,6 +20,7 @@ t/csv.t_2
 t/date_parsing.t
 t/date_with_no_end_string.t
 t/date_with_no_end_string_dpie.t
+t/dog_no_cat.t
 t/empty.t
 t/event.t
 t/how_many.t

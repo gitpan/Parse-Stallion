@@ -76,26 +76,26 @@ fin_exp => OR(
    ),
   ),
 ,
-end_of_string => NON_STRING_LEAF({
+end_of_string => L({
   nsl_regex_match => qr/\z/,
  }),
 ,
-number => NON_STRING_LEAF({
+number => L({
   nsl_regex_match => qr/\s*[+-]?(\d+(\.\d*)?|\.\d+)\s*/,
  },
 EVALUATION(
   sub{
    return 0 + $_[0];
   })),
-left_parenthesis => NON_STRING_LEAF({
+left_parenthesis => L({
   nsl_regex_match => qr/\s*\(\s*/,
  }),
 ,
-right_parenthesis => NON_STRING_LEAF({
+right_parenthesis => L({
   nsl_regex_match => qr/\s*\)\s*/,
  }),
 ,
-power_of => NON_STRING_LEAF({
+power_of => L({
   nsl_regex_match => qr/\s*\*\*\s*/,
  }),
 ,
@@ -103,11 +103,11 @@ plus_or_minus => OR(
   'plus', 'minus',
  ),
 ,
-plus => NON_STRING_LEAF({
+plus => L({
   nsl_regex_match => qr/\s*\+\s*/,
  }),
 ,
-minus => NON_STRING_LEAF({
+minus => L({
   nsl_regex_match => qr/\s*\-\s*/,
  }),
 ,
@@ -115,15 +115,15 @@ times_or_divide_or_modulo => OR(
   'times', 'divided_by', 'modulo'
  ),
 ,
-modulo => NON_STRING_LEAF({
+modulo => L({
   nsl_regex_match => qr/\s*\%\s*/,
  }),
 ,
-times => NON_STRING_LEAF({
+times => L({
   nsl_regex_match => qr/\s*\*\s*/,
  }),
 ,
-divided_by => NON_STRING_LEAF({
+divided_by => L({
   nsl_regex_match => qr/\s*\/\s*/,
  }),
 ,

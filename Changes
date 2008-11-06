@@ -1,5 +1,14 @@
 Revision history for Perl extension Parse::Stallion.
 
+0.2
+     leaf rules have their own forward and backtrack subroutines
+
+     backtrack subroutine can end a parse
+
+     leaf can have display (for Parse::Stallion::EBNF)
+
+     error messages on bad rules
+
 0.11
      fixed name in description of module
 

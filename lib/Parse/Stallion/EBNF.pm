@@ -46,7 +46,7 @@ sub ebnf {
          map {$_->{name}} @{$parser->{rule}->{$rule}->{subrule_list}});
       }
       elsif ($parser->{rule}->{$rule}->{rule_type} eq 'LEAF') {
-        $results .= $parser->{rule}->{$rule}->{leaf_info}->{regex_match};
+        $results .= $parser->{rule}->{$rule}->{leaf_display};
       }
       else { croak "unknown rule type ".$parser->{rule}->{$rule}->{rule_type};}
       if ($parser->{rule}->{$rule}->{subrule_list}) {

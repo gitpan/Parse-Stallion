@@ -6,14 +6,14 @@ BEGIN { use_ok('Parse::Stallion') };
 my %calculator_rules = (
  start_rule =>
    AND('expression',
-   sub {
+   E(sub {
 #print STDERR "final expression is ".$_[0]->{expression}."\n";
-return $_[0]->{expression}},
+return $_[0]->{expression}}),
   ),
  expression => AND(
    'term', 
     MULTIPLE(AND('plus_or_minus', 'term')),
-   sub {my $to_combine = $_[0]->{term};
+   E(sub {my $to_combine = $_[0]->{term};
 #use Data::Dumper; print STDERR "p and e params are ".Dumper(\@_);
     my $plus_or_minus = $_[0]->{plus_or_minus};
     my $value = $to_combine->[0];
@@ -26,12 +26,12 @@ return $_[0]->{expression}},
       }
     }
     return $value;
-   },
+   }),
   ),
  term => AND(
    'number', 
     M(AND('times_or_divide', 'number')),
-    sub {my $to_combine = $_[0]->{number};
+    E(sub {my $to_combine = $_[0]->{number};
 #use Data::Dumper;print STDERR "terms to term are ".Dumper(\@_)."\n";
     my $times_or_divide = $_[0]->{times_or_divide};
     my $value = $to_combine->[0];
@@ -45,10 +45,10 @@ return $_[0]->{expression}},
     }
 #print STDERR "Term returning $value\n";
     return $value;
-   }
+   })
  ),
  number => LEAF(qr/\s*[+\-]?(\d+(\.\d*)?|\.\d+)\s*/,
-   sub{ return 0 + $_[0]}),
+   E(sub{ return 0 + $_[0]})),
  plus_or_minus => LEAF(qr/\s*[\-+]\s*/),
  times_or_divide => LEAF(qr/\s*[*\/]\s*/)
 );
