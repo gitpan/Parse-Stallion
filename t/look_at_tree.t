@@ -84,9 +84,10 @@ is ($x, 31, "simple plus and multiply");
 my @bottom_up_names;
 my @bottom_up_pvalues;
 #$calculator_parser->remove_non_evaluated_nodes({tree=>$parsed_tree});
-foreach my $node ($parsed_tree->bottom_up_depth_first_search) {
-  push @bottom_up_names, $node->{values}->{name};
-  push @bottom_up_pvalues, $node->{values}->{parse_match};
+foreach my $node
+ (Parse::Stallion::bottom_up_depth_first_search($parsed_tree)) {
+  push @bottom_up_names, $node->{name};
+  push @bottom_up_pvalues, $node->{parse_match};
 }
 
 #use Data::Dumper;print STDERR "bunames ".Dumper(\@bottom_up_names)."\n";

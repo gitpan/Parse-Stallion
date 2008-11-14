@@ -113,42 +113,42 @@ is ($result, 20070805004024, "now set up with hard coded date");
 
 $result =
  $date_parser->parse_and_evaluate("now - 10s");
-print "NResult minus 10 is $result\n";
+#print "NResult minus 10 is $result\n";
 is ($result, 20070805004014, "10 seconds before hard coded date");
 
 $result =
  $date_parser->parse_and_evaluate("now + 70h");
-print "NResult plus 70 hours is $result\n";
+#print "NResult plus 70 hours is $result\n";
 is ($result, 20070807224024, "70 hours after hard coded date");
 
 $result =
  $date_parser->parse_and_evaluate("now + 70h +3s");
-print "NResult plus 70 hours plus 3 sec is $result\n";
+#print "NResult plus 70 hours plus 3 sec is $result\n";
 is ($result, 20070807224027, "70 hours 3 secs after hard coded date");
 
 $result =
  $date_parser->parse_and_evaluate("3/22/2007");
-print "NResult march 22 2007is $result\n";
+#print "NResult march 22 2007is $result\n";
 is ($result, 20070322000000, "3/22/2007");
 
 $result =
  $date_parser->parse_and_evaluate("2/21/2007 + 5d");
-print "NResult march 22 2007 plus 5 days is $result\n";
+#print "NResult march 22 2007 plus 5 days is $result\n";
 is ($result, 20070226000000, "2/21/2007 and 5 days");
 
 $result =
  $date_parser->parse_and_evaluate("2/22/2008 + 7d");
-print "NResult feb 22 2008 plus 7 days is $result\n";
+#print "NResult feb 22 2008 plus 7 days is $result\n";
 is ($result, 20080229000000, "2/22/2008 and 7 days");
 
 $result =
  $date_parser->parse_and_evaluate("2/22/2007 + 7d");
-print "NResult feb 22 2007 plus 7 days is $result\n";
+#print "NResult feb 22 2007 plus 7 days is $result\n";
 is ($result, 20070301000000, "2/22/2008 and 7 days");
 
 $result =
  $date_parser->parse_and_evaluate("2/22/2007 + 7D");
-print "NResult feb 22 2007 plus 7 days is $result\n";
+#print "NResult feb 22 2007 plus 7 days is $result\n";
 is ($result, 20070301000000, "2/22/2008 plus 7 DAYS");
 
 

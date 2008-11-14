@@ -12,7 +12,7 @@ my %parsing_rules_with_min_first = (
     return $_[0]->{parse_expression}})
  ),
  parse_expression => M(
-   'pe', MATCH_MIN_FIRST, USE_PARSE_MATCH
+   'pe', 'match_min_first', USE_PARSE_MATCH
  ),
  pe => L(
    qr/./

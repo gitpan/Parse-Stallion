@@ -4,8 +4,6 @@ MANIFEST
 README
 example/calculator.pl
 example/csv.pl
-example/csvfh.pl
-example/csvfh.data
 example/date_parsing.pl
 example/how_many.pl
 example/object_string.pl
@@ -15,8 +13,6 @@ t/calc_scan_with_no_end.t
 t/calculator_parsing.t
 t/calculator_no_eval.t
 t/csv.t
-t/csv.t_1
-t/csv.t_2
 t/date_parsing.t
 t/date_with_no_end_string.t
 t/date_with_no_end_string_dpie.t
@@ -38,6 +34,5 @@ t/simple_calc.t
 t/space_in_eval.t
 lib/Parse/Stallion.pm
 lib/Parse/Stallion/CSV.pm
-lib/Parse/Stallion/CSVFH.pm
 lib/Parse/Stallion/EBNF.pm
 META.yml                                 Module meta-data (added by MakeMaker)

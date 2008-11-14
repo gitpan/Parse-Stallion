@@ -1,5 +1,18 @@
 Revision history for Perl extension Parse::Stallion.
 
+0.3
+     Fix UNEVAL if given no subroutine
+
+     Removed CSVFH.pm
+
+     Fixed parse_match in unevaluation routine.
+
+     code rewritten to speed up parses
+
+     changed MATCH_MIN_FIRST() to string parameter of MULTIPLE
+
+     NON_STRING_LEAF removed, can be handled by LEAF
+
 0.2
      leaf rules have their own forward and backtrack subroutines
 

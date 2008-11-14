@@ -160,6 +160,7 @@ my $calculator_stallion = new Parse::Stallion({
    sub {
     my $input_string_ref = shift;
     my $rule_definition = shift;
+    my $prev_value = shift;
     my $stored_value = shift;
     $pb_count=1;
     if (defined $stored_value) {

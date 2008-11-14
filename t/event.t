@@ -141,7 +141,7 @@ any_char => L(
 ),
 
 information => M(
-  'any_char', MATCH_MIN_FIRST, E(
+  'any_char', 'match_min_first', E(
   sub {
 #use Data::Dumper; print STDERR "information is ".Dumper(\@_)."\n";
     my $param = shift;
