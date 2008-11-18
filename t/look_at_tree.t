@@ -4,6 +4,19 @@ use Test::More tests => 10;
 #use Data::Dumper;
 BEGIN { use_ok('Parse::Stallion') };
 
+sub bottom_up_depth_first_search { #left to right
+  my $tree = shift;
+  my @qresults;
+  my @queue = ($tree);
+  while (my $node = pop @queue) {
+    unshift @qresults, $node;
+    foreach my $child (@{$node->{children}}) {
+      push @queue, $child;
+    }
+  }
+  return @qresults;
+}
+
 my %calculator_rules = (
  start_expression => A(
    'expression', L(qr/\z/),
@@ -85,7 +98,7 @@ my @bottom_up_names;
 my @bottom_up_pvalues;
 #$calculator_parser->remove_non_evaluated_nodes({tree=>$parsed_tree});
 foreach my $node
- (Parse::Stallion::bottom_up_depth_first_search($parsed_tree)) {
+ (bottom_up_depth_first_search($parsed_tree)) {
   push @bottom_up_names, $node->{name};
   push @bottom_up_pvalues, $node->{parse_match};
 }

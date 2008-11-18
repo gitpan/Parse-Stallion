@@ -24,6 +24,7 @@ t/how_many_no_alias.t
 t/in_doc.t
 t/look_at_tree.t
 t/min_multiple.t
+t/multiple.t
 t/object_string.t
 t/parser_within_parser.t
 t/parsexml.t

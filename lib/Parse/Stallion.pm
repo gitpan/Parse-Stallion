@@ -5,7 +5,7 @@ use Carp;
 use strict;
 use warnings;
 use 5.006;
-our $VERSION = '0.3';
+our $VERSION = '0.4';
 
 sub stringify {
   my $self = shift;
@@ -55,382 +55,349 @@ sub parse {
   my $object_being_parsed = $parameters->{parse_this};
   my $start_node = $parsing_info->{start_rule};
   my $max_steps = $parameters->{max_steps} || $parsing_info->{max_steps};
+  my $rule = $parsing_info->{rule};
+  my @bottom_up_left_to_right;
 
   my $first_alias = 'b'.$parsing_info->{separator}.$parsing_info->{separator};
   my $object_length = length($object_being_parsed);
 
   my $current_value = 0;
-  if ($parsing_info->{increasing_value}) {
-    $current_value = $parsing_info->{current_value} =
-     &{$parsing_info->{increasing_value}}($object_being_parsed);
-  }
-  else {
-    $parsing_info->{current_value} = 0;
+  my $increasing_value;
+  if ($increasing_value = $parsing_info->{increasing_value}) {
+    $current_value = &{$increasing_value}($object_being_parsed);
   }
   my $trace = $parsing_info->{trace};
+
+  my $any_minimize_children = $parsing_info->{any_minimize_children} || 0;
+  my $any_parse_forward = $parsing_info->{any_parse_forward} || 0;
+  my $any_parse_backtrack = $parsing_info->{any_parse_backtrack} || 0;
 
   my $tree = {
     name => $start_node,
     steps => 0,
     alias => $first_alias,
     value_when_entered => $current_value,
-    current_subrule_number => 0,
-    subrule_counts => [0],
     children => [],
     child_count => 0
   };
   bless($tree, 'Parse::Stallion::Talon');
 
-  $parsing_info->{results}->{tree} = $parsing_info->{current_node} = $tree;
-  $parsing_info->{moving_forward} = 1;
-  $parsing_info->{moving_down} = 1;
-  $parsing_info->{results}->{parse_trace} = $parsing_info->{parse_trace} = [];
-  $parsing_info->{steps} = 0;
-  $parsing_info->{active_rules_values} = {};
-  $parsing_info->{object_being_parsed} = $object_being_parsed;
-  $parsing_info->{message} = 'Start of Parse';
+  my @parse_trace;
+  my $current_node = $tree;
+  my $moving_forward = 1;
+  my $moving_down = 1;
+  my $steps = 0;
+  my %active_rules_values;
+  my $message = 'Start of Parse';
+  my ($new_rule_name, $new_alias);
+  my $do_evaluation_in_parsing = $parsing_info->{do_evaluation_in_parsing};
 
-  while (($parsing_info->{steps} < $max_steps) &&
-   $parsing_info->{current_node}) {
-    while ((my $current_node = $parsing_info->{current_node}) &&
-     (++$parsing_info->{steps} < $max_steps)) {
-      my $current_node_name = $parsing_info->{current_node_name} =
-       $current_node->{name};
-      my $current_rule = $parsing_info->{current_rule} =
-       $parsing_info->{rule}->{$current_node_name};
+  my $node_completed = 0;
+  my $create_child = 0;
+  my $move_back_to_child = 0;
+  my $remove_node = 0;
+  my %blocked;
+  my $new_rule;
+
+  while (($steps < $max_steps) && $current_node) {
+    while ($current_node && (++$steps < $max_steps)) {
+      my $current_node_name = $current_node->{name};
+      my $current_rule = $rule->{$current_node_name};
+
       if ($trace) {
         my $parent_step = 0;
         if ($current_node->{parent}) {
           $parent_step = $current_node->{parent}->{steps};
         }
-        push @{$parsing_info->{parse_trace}}, {
+        push @parse_trace, {
          rule_name => $current_node_name,
-         moving_forward => $parsing_info->{moving_forward},
-         moving_down => $parsing_info->{moving_down},
+         moving_forward => $moving_forward,
+         moving_down => $moving_down,
          value => $current_value,
          node_creation_step => $current_node->{steps},
          parent_node_creation_step => $parent_step,
-         message => $parsing_info->{message},
+         message => $message,
+         tree => $tree->stringify,
         };
-        $parsing_info->{message} = '';
+        $message = '';
       }
-      if ($parsing_info->{moving_down}) {
-        if ($parsing_info->{moving_forward}) {
-          if ($current_rule->{leaf_rule}) {
-            $parsing_info->{message} = 'Leaf not matched';
-            my ($able_to_modify, $match);
-            if ($current_rule->{parse_forward}) {
-              ($able_to_modify, $match) =
-               &{$current_rule->{parse_forward}}
-               (\$parsing_info->{object_being_parsed},
-                $current_rule->{leaf_info},
-                $current_value
-               );
-              if ($parsing_info->{increasing_value}) {
-                $current_value = $parsing_info->{current_value} =
-                 &{$parsing_info->{increasing_value}}
-                 ($parsing_info->{object_being_parsed});
-              }
-            }
-            else {
-              my $x = $current_rule->{regex_match};
-              pos $parsing_info->{object_being_parsed} = $current_value;
-              if ($parsing_info->{object_being_parsed} =~ /$x/g) {
-                $match = $1;
-                $able_to_modify = 1;
-                $current_value = $parsing_info->{current_value}
-                 = pos $parsing_info->{object_being_parsed};
-              }
-              else {
-                $able_to_modify = 0;
-              }
+      if ($moving_forward) {
+        if ($current_rule->{leaf_rule}) {
+          $message = 'Leaf not matched' if $trace;
+          my ($able_to_modify, $match);
+          if ($any_parse_forward && $current_rule->{parse_forward}) {
+            ($able_to_modify, $match) =
+             &{$current_rule->{parse_forward}}
+             (\$object_being_parsed,
+              $current_rule->{leaf_info},
+              $current_value
+             );
+            if ($increasing_value) {
+              $current_value = &{$increasing_value}($object_being_parsed);
             }
             if ($current_node->{value_when_entered} > $current_value) {
               croak ("Moving forward on $current_node_name"
                ." resulted in backwards progress");
             }
-            if (!$able_to_modify) {
-              $parsing_info->remove_node_from_parse;
+          }
+          else {
+            my $x = $current_rule->{regex_match};
+            pos $object_being_parsed = $current_value;
+            if ($object_being_parsed =~ /$x/g) {
+              $match = $1;
+              if (!defined $match) {$match = ''};
+              $able_to_modify = 1;
+              $current_value = pos $object_being_parsed;
             }
             else {
-              $current_node->{parse_match} = $match;
-              $parsing_info->mark_node_satisfied;
-              $parsing_info->{message} = 'Leaf matched';
+              $able_to_modify = 0;
             }
           }
-          elsif ($parsing_info->{blocked}->{$current_node_name}->
-           {$current_value}
-           ) {
-            $parsing_info->remove_node_from_parse;
-          }
-          elsif ($current_rule->{minimize_children}) {
-            $parsing_info->continue_on_to_parent;
+          if (!$able_to_modify) {
+            $remove_node = 1;
           }
           else {
-            $parsing_info->inner_create_child;
+            $current_node->{parse_match} = $match;
+            $node_completed = 1;
+            $message = 'Leaf matched' if $trace;
           }
         }
-        else { # !$parsing_info->{moving_forward}
-          if ($current_rule->{leaf_rule}) {
-            $current_value = $parsing_info->{current_value} =
-             $current_node->{value_when_entered};
-            if ($current_rule->{parse_backtrack}) {
-              my $end_parse_now =
-               &{$current_rule->{parse_backtrack}}
-               (\$parsing_info->{object_being_parsed},
-                $current_rule->{leaf_info},
-                $current_value,
-                $current_node->{parse_match}
-               );
-              if ($parsing_info->{increasing_value}) {
-                if ($current_value != &{$parsing_info->{increasing_value}}
-                 ($parsing_info->{object_being_parsed})) {
-                  croak ("Backtrack changed increasing value function");
-                }
+        elsif ($current_rule->{or_rule}) {
+          if ($moving_down) {
+            $new_rule = $current_rule->{subrule_list}->[0];
+            $new_rule_name = $new_rule->{name};
+            $new_alias = $new_rule->{alias};
+            $current_node->{or_child_number} = 0;
+            $create_child = 1;
+          }
+          else {
+            $node_completed = 1;
+          }
+        }
+        elsif ($current_rule->{and_rule}) {
+          if ($current_node->{child_count} ==
+           $current_rule->{subrule_list_count}) {
+            $node_completed = 1;
+          }
+          else {
+            $new_rule = $current_rule->{subrule_list}->[
+             $current_node->{child_count}];
+            $new_rule_name = $new_rule->{name};
+            $new_alias = $new_rule->{alias};
+            $create_child = 1;
+          }
+        }
+        elsif ($any_minimize_children && $current_rule->{minimize_children} &&
+         $current_rule->{minimum_child} <= $current_node->{child_count}) {
+          $node_completed = 1;
+        }
+        elsif ($current_rule->{maximum_child} &&
+         $current_rule->{maximum_child} == $current_node->{child_count}) {
+          $node_completed = 1;
+        }
+        else {
+          $new_rule_name = $current_rule->{sub_rule_name};
+          $new_alias = $current_rule->{sub_alias};
+          $create_child = 1;
+        }
+      }
+      else { # !$moving_forward
+        if ($current_rule->{leaf_rule}) {
+          $current_value = $current_node->{value_when_entered};
+          if ($any_parse_backtrack && $current_rule->{parse_backtrack}) {
+            my $end_parse_now =
+             &{$current_rule->{parse_backtrack}}
+             (\$object_being_parsed,
+              $current_rule->{leaf_info},
+              $current_value,
+              $current_node->{parse_match}
+             );
+            if ($increasing_value) {
+              if ($current_value !=
+               &{$increasing_value}($object_being_parsed)) {
+                croak ("Backtrack changed increasing value function
+                 step $steps rule $current_node_name");
               }
-              if ($end_parse_now) {
-                $parsing_info->{current_node} = undef;
-                $parsing_info->{moving_forward} = 0;
-                last;
-              }
             }
-            $parsing_info->remove_node_from_parse;
-          }
-          elsif ($current_rule->{minimize_children}) {
-            $parsing_info->inner_create_child;
-          }
-          else {
-            $parsing_info->move_back_to_youngest_child_or_remove_node;
-          }
-        }
-      }
-      else {
-        if ($parsing_info->{moving_forward}) {
-          if ($current_rule->{minimize_children} ||
-           $current_rule->{or_rule}) {
-            $parsing_info->continue_on_to_parent;
-          }
-          else {
-            $parsing_info->inner_create_child;
-          }
-        }
-        else { # !$parsing_info->{moving_forward}
-          my $subrule_number =
-           $current_node->{current_subrule_number};
-          if (($subrule_number < $current_rule->{subrule_list_count})
-           && ($current_node->{subrule_counts}->[$subrule_number]
-            >= $current_rule->{minimum_child}
-           )
-           && (!($current_rule->{or_rule} && $current_node->{child_count}))
-          ) {
-            my $y = ++$current_node->{current_subrule_number};
-            $current_node->{subrule_counts}->[$y] = 0;
-            $parsing_info->inner_create_child;
-          }
-          else {
-            if ($current_rule->{minimize_children}) {
-              $parsing_info->move_back_to_youngest_child_or_remove_node;
+            if ($end_parse_now) {
+              $current_node = undef;
+              $moving_forward = 0;
+              last;
             }
-            else { # !$current_rule->{minimize_children}
-              $parsing_info->continue_on_to_parent;
+          }
+          $remove_node = 1;
+        }
+        elsif ($current_rule->{or_rule}) {
+          if ($moving_down) {
+            $move_back_to_child = 1;
+          }
+          else {
+            if (++$current_node->{or_child_number} <
+             $current_rule->{subrule_list_count}) {
+              $new_rule = $current_rule->{subrule_list}->[
+               $current_node->{or_child_number}];
+              $new_rule_name = $new_rule->{name};
+              $new_alias = $new_rule->{alias};
+              $create_child = 1;
+            }
+            else {
+              $remove_node = 1;
             }
           }
         }
+        elsif ($current_rule->{and_rule}) {
+          if ($current_node->{child_count} == 0) {
+            $remove_node = 1;
+          }
+          else {
+            $move_back_to_child = 1;
+          }
+        }
+        elsif (((!$any_minimize_children ||
+         !$current_rule->{minimize_children}) && !$moving_down) &&
+         (!$current_rule->{minimum_child} ||
+         ($current_rule->{minimum_child} <= $current_node->{child_count}))) {
+          $node_completed = 1;
+        }
+        elsif (($any_minimize_children &&
+         $current_rule->{minimize_children} && $moving_down) &&
+         (!$current_rule->{maximum_child} ||
+         ($current_rule->{maximum_child} > $current_node->{child_count}))) {
+          $new_rule_name = $current_rule->{sub_rule_name};
+          $new_alias = $current_rule->{sub_alias};
+          $create_child = 1;
+        }
+        elsif ($current_node->{child_count}) {
+          $move_back_to_child = 1;
+        }
+        else {
+          $remove_node = 1;
+        }
+      }
+
+      if ($create_child) {
+        $create_child = 0;
+        if ($blocked{$new_rule_name}->{$current_value}) {
+          $message =
+           "Rule $new_rule_name blocked before on value $current_value"
+           if $trace;
+          $moving_forward = 0;
+          $moving_down = 0;
+        }
+        elsif (!($rule->{$new_rule_name}->{leaf_rule}) &&
+         ($active_rules_values{$new_rule_name}->{$current_value}++)) {
+           croak ("$new_rule_name duplicated in parse on same string");
+        }
+        else {
+          $message = "Creating child $new_rule_name for node created on step "
+           .$current_node->{steps} if $trace;
+          my $new_node = {
+            name => $new_rule_name,
+            alias => $new_alias,
+            steps => $steps,
+            parent => $current_node,
+            value_when_entered => $current_value,
+            children => [],
+            child_count => 0,
+          };
+          push @{$current_node->{children}}, $new_node;
+          $current_node->{child_count}++;
+          $current_node = $new_node;
+          $moving_forward = 1;
+          $moving_down = 1;
+        }
+      }
+      elsif ($node_completed) {
+        $node_completed = 0;
+        if ($current_node->{ventured}->{$current_value}++) {
+          $message .= " Already ventured beyond this node at value" if $trace;
+          $moving_forward = 0;
+          $moving_down = 1;
+        }
+        else {
+          my $reject;
+          if ($do_evaluation_in_parsing) {
+            (undef, $reject) = $parsing_info->{self}->new_evaluate_tree_node(
+             {nodes => [$current_node],
+              object => $object_being_parsed,
+              current_value => $current_value,
+            });
+          }
+          if (defined $reject && $reject) {
+            $moving_forward = 0;
+            $moving_down = 1;
+            $message .= " Node rejected" if $trace;
+          }
+          else {
+            push @bottom_up_left_to_right, $current_node;
+            $current_node->{'beyond'} = 1;
+            $message .= " Completed node created on step ".
+             $current_node->{steps} if $trace;
+            $moving_down = 0;
+            $moving_forward = 1;
+            $current_node = $current_node->{parent};
+          }
+        }
+      }
+      elsif ($move_back_to_child) {
+        $move_back_to_child = 0;
+        $message .= " Backtracking to child" if $trace;
+        $moving_down = 1;
+        $moving_forward = 0;
+        pop @bottom_up_left_to_right;
+        $current_node =
+         $current_node->{children}->[$current_node->{child_count}-1];
+        if ($do_evaluation_in_parsing) {
+          $parsing_info->{self}->new_unevaluate_tree_node(
+           {node => $current_node,
+            object => $object_being_parsed});
+        }
+      }
+      elsif ($remove_node) {
+        $remove_node = 0;
+        $moving_forward = 0;
+        $moving_down = 0;
+        if (!$current_node->{'beyond'}) {
+          $blocked{$current_node_name}->{$current_value} = 1;
+        }
+        delete $active_rules_values{$current_node_name}->{$current_value};
+        $message .= " Removed node created on step ".$current_node->{steps}
+         if $trace;
+        $current_node = $current_node->{parent};
+        if (defined $current_node) {
+          pop @{$current_node->{children}};
+          $current_node->{child_count}--;
+        }
       }
     }
-    if (!$parsing_info->{current_node} &&
-      $parsing_info->{moving_forward} &&
-     (!(!(defined $parsing_info->{object_being_parsed}) ||
-       $parsing_info->{object_being_parsed} eq '' ||
-       ($parsing_info->{current_value} == $object_length))) ) {
-       $parsing_info->{moving_forward} = 0;
-       $parsing_info->{moving_down} = 1;
-       $parsing_info->{current_node} = $tree;
+    if (!$current_node && $moving_forward &&
+     (!(!(defined $object_being_parsed) ||
+       $object_being_parsed eq '' ||
+       ($current_value == $object_length))) ) {
+       $moving_forward = 0;
+       $moving_down = 1;
+       $current_node = $tree;
+       $message .= ' . At top of tree but did not parse entire object'
+        if $trace;
+       pop @bottom_up_left_to_right;
     }
   }
-  $parsing_info->{results}->{start_rule} = $parsing_info->{start_rule};
-  $parsing_info->{results}->{number_of_steps} = $parsing_info->{steps};
-  if ($parsing_info->{moving_forward} && $parsing_info->{steps} < $max_steps) {
-    $parsing_info->{results}->{parse_succeeded} = 1;
-    if ($parsing_info->{do_evaluation_in_parsing}) {
-      $parsing_info->{results}->{parsing_evaluation} = $tree->{computed_value};
-    }
-  }
-  else {
-    $parsing_info->{results}->{parse_succeeded} = 0;
-  }
-}
-
-sub remove_node_from_parse {
-  my $parsing_info = shift;
-  my $current_node = $parsing_info->{current_node};
-  $parsing_info->{moving_forward} = 0;
-  $parsing_info->{moving_down} = 0;
-  if (!$current_node->{'beyond'}) {
-    $parsing_info->{blocked}->{$parsing_info->{current_node_name}}
-     ->{$parsing_info->{current_value}} = 1;
-  }
-  if ($current_node->{value_when_entered} != $parsing_info->{current_value}) {
-    croak ("Change of increasing_value_function on backtrack.");
-  }
-  delete $parsing_info->{active_rules_values}->
-   {$parsing_info->{current_node_name}}->{$parsing_info->{current_value}};
-  $parsing_info->{message} = "Removed node created on step ".
-   $current_node->{steps};
-  my $parent_subrule_number =
-   $current_node->{parent_subrule_number};
-  if (defined $parent_subrule_number) {
-    $current_node = $parsing_info->{current_node} = $current_node->{parent};
-    pop @{$current_node->{children}};
-    $current_node->{child_count}--;
-    $current_node->{current_subrule_number} = $parent_subrule_number;
-    $current_node->{subrule_counts}->[$parent_subrule_number]--;
-  }
-  else {
-    $parsing_info->{current_node} = undef;
-  }
-}
-
-sub inner_rule_conditions_satisfied {
-  my $parsing_info = shift;
-  if (($parsing_info->{current_rule}->{or_rule}) &&
-   (!$parsing_info->{current_node}->{child_count})) {
-    return 0;
-  }
-
-  my $subrule_number = $parsing_info->{current_node}->{current_subrule_number};
-
-  if ($parsing_info->{current_rule}->{minimum_child} &&
-   (($parsing_info->{current_rule}->{minimum_child} >
-     $parsing_info->{current_node}->{subrule_counts}->[$subrule_number]) ||
-    ($subrule_number < $parsing_info->{current_rule}->{subrule_list_count}))) {
-    return 0;
-  }
-
-  return 1;
-}
-
-sub inner_create_child {
-  my $parsing_info = shift;
-
-  my $current_rule = $parsing_info->{current_rule};
-  my $current_node = $parsing_info->{current_node};
-  my $subrule_number = $current_node->{current_subrule_number};
-  my $subrule_max = $current_rule->{maximum_child};
-  my $subrule_counts = $current_node->{subrule_counts};
-  if ($subrule_max && 
-   ($subrule_counts->[$subrule_number] == $subrule_max)) {
-    if ($subrule_number == $current_rule->{subrule_list_count}) {
-      $parsing_info->{moving_forward} = 0;
-      $parsing_info->{moving_down} = 0;
-      $parsing_info->{message} = "Cannot create child for node created on ".
-       "step ".  $current_node->{steps}." subrule $subrule_number";
-      return;
-    }
-    else {
-      $subrule_number = ++$current_node->{current_subrule_number};
-      $subrule_counts->[$subrule_number] = 1;
+  my %results;
+  $results{start_rule} = $parsing_info->{start_rule};
+  $results{number_of_steps} = $steps;
+  $results{tree} = $tree;
+  $results{parse_trace} = \@parse_trace;
+  $results{bottom_up_left_to_right} = \@bottom_up_left_to_right;
+  if ($moving_forward && $steps < $max_steps) {
+    $results{parse_succeeded} = 1;
+    if ($do_evaluation_in_parsing) {
+      $results{parsing_evaluation} = $tree->{computed_value};
     }
   }
   else {
-    $subrule_counts->[$subrule_number]++;
+    $results{parse_succeeded} = 0;
   }
-
-  my $subrule_info = $current_rule->{subrule_list}->[$subrule_number];
-  my $child_rule_name = $subrule_info->{name};
-  my $alias = $subrule_info->{alias};
-
-  if (!($parsing_info->{rule}->{$child_rule_name}->{leaf_rule}) &&
-   ($parsing_info->{active_rules_values}->{$child_rule_name}->
-    {$parsing_info->{current_value}}++)) {
-    croak ("$child_rule_name duplicated in parse on same string");
-  }
-
-  $parsing_info->{message} = "Creating child for node created on step "
-   .$current_node->{steps};
-  my $new_node = {
-    name => $child_rule_name,
-    alias => $alias,
-    steps => $parsing_info->{steps},
-    parent => $current_node,
-    parent_subrule_number => $subrule_number,
-    value_when_entered => $parsing_info->{current_value},
-    children => [],
-    child_count => 0,
-    current_subrule_number => 0,
-    subrule_counts => [0],
-  };
-  push @{$current_node->{children}}, $new_node;
-  $current_node->{child_count}++;
-  $parsing_info->{current_node} = $new_node;
-  $parsing_info->{moving_forward} = 1;
-  $parsing_info->{moving_down} = 1;
-}
-
-sub mark_node_satisfied {
-  my $parsing_info = shift;
-  my $current_node = $parsing_info->{current_node};
-
-  if ($current_node->{ventured}->{$parsing_info->{current_value}}++) {
-    $parsing_info->{moving_forward} = 0;
-    $parsing_info->{moving_down} = 1;
-  }
-  else {
-    if ($parsing_info->{do_evaluation_in_parsing}) {
-      my $reject;
-      (undef, $reject) = $parsing_info->{self}->new_evaluate_tree_node(
-       {node => $current_node,
-        object => $parsing_info->{object_being_parsed},
-        current_value => $parsing_info->{current_value},
-      });
-      if (defined $reject && $reject) {
-        $parsing_info->{moving_forward} = 0;
-        $parsing_info->{moving_down} = 1;
-        return;
-      }
-    }
-    $current_node->{'beyond'} = 1;
-
-    $parsing_info->{message} = "Completed node created on step ".
-     $current_node->{steps};
-    $parsing_info->{moving_down} = 0;
-    $parsing_info->{moving_forward} = 1;
-    $parsing_info->{current_node} = $current_node->{parent};
-  }
-}
-
-sub continue_on_to_parent {
-  my $parsing_info = shift;
-  $parsing_info->{message} = "Rejected node created on step ".
-   $parsing_info->{current_node}->{steps};
-  if ($parsing_info->inner_rule_conditions_satisfied) {
-    $parsing_info->mark_node_satisfied;
-  }
-  else {
-    $parsing_info->{moving_forward} = 0;
-    $parsing_info->{moving_down} = 1;
-  }
-}
-
-sub move_back_to_youngest_child_or_remove_node {
-  my $parsing_info = shift;
-  if ($parsing_info->{current_node}->{child_count}) {
-    $parsing_info->{message} = "Backwards to youngest child";
-    $parsing_info->{moving_down} = 1;
-    $parsing_info->{moving_forward} = 0;
-
-    my $current_node = $parsing_info->{current_node} =
-     $parsing_info->{current_node}->{children}->[
-      $parsing_info->{current_node}->{child_count}-1];
-    if ($parsing_info->{do_evaluation_in_parsing}) {
-      $parsing_info->{self}->new_unevaluate_tree_node(
-       {node => $parsing_info->{current_node},
-        object => $parsing_info->{object_being_parsed}});
-    }
-  }
-  else {
-    $parsing_info->remove_node_from_parse;
-  }
+  return \%results;
 }
 
 package Parse::Stallion;
@@ -466,9 +433,11 @@ sub new {
     $self->{separator} = $parameters->{separator} || $self->{separator};
     if (defined $parameters->{parse_forward}) {
       $self->{leaf_parse_forward} = $parameters->{parse_forward};
+      $self->{any_parse_forward} = 1;
     }
     if (defined $parameters->{parse_backtrack}) {
       $self->{leaf_parse_backtrack} = $parameters->{parse_backtrack};
+      $self->{any_parse_backtrack} = 1;
     }
     if (defined $parameters->{increasing_value_function}) {
       $self->{increasing_value} = $parameters->{increasing_value_function};
@@ -488,19 +457,21 @@ sub parse_and_evaluate {
   if (wantarray) {
     $parser->{trace} = 1;
   }
-  $parser->parse($parameters);
+  my $parser_results = $parser->parse($parameters);
   my $to_return;
-  if (!($parser->{results}->{parse_succeeded})) {
+  if (!($parser_results->{parse_succeeded})) {
     $to_return = undef;
   }
   elsif ($self->{do_evaluation_in_parsing}) {
-    $to_return = $parser->{results}->{parsing_evaluation}
+    $to_return = $parser_results->{parsing_evaluation}
   }
   else {
-    $to_return = $self->do_tree_evaluation({tree=>$parser->{results}->{tree}});
+    $self->new_evaluate_tree_node(
+     {nodes=>$parser_results->{bottom_up_left_to_right}});
+    $to_return = $parser_results->{tree}->{computed_value};
   }
   if (wantarray) {
-    return $to_return, $parser->{results};
+    return $to_return, $parser_results;
   }
   else {
     return $to_return;
@@ -681,6 +652,7 @@ sub add_rule {
     }
     elsif (ref $sub_rule eq 'ARRAY' && $sub_rule->[0] eq 'MATCH_MIN_FIRST') {
       $self->{rule}->{$rule_name}->{minimize_children} = 1;
+      $self->{any_minimize_children} = 1;
     }
     elsif (ref $sub_rule eq 'ARRAY' && $sub_rule->[0] eq 'LEAF_DISPLAY') {
       $self->{rule}->{$rule_name}->{leaf_display} = $sub_rule->[1];
@@ -691,10 +663,12 @@ sub add_rule {
     elsif (ref $sub_rule eq 'ARRAY' && $sub_rule->[0] eq 'PARSE_FORWARD') {
       $self->{rule}->{$rule_name}->{parse_forward} = $sub_rule->[1]
       || croak ("Rule $rule_name Illegal parse_forward routine");
+      $self->{any_parse_forward} = 1;
     }
     elsif (ref $sub_rule eq 'ARRAY' && $sub_rule->[0] eq 'PARSE_BACKTRACK') {
       $self->{rule}->{$rule_name}->{parse_backtrack} = $sub_rule->[1]
       || croak ("Rule $rule_name Illegal parse_backtrack routine");
+      $self->{any_parse_backtrack} = 1;
     }
     else {
       push @copy_of_rule, $sub_rule;
@@ -704,6 +678,7 @@ sub add_rule {
    shift @copy_of_rule;
   $self->{rule}->{$rule_name}->{leaf_rule} = 0;
   $self->{rule}->{$rule_name}->{or_rule} = 0;
+  $self->{rule}->{$rule_name}->{and_rule} = 0;
   if ($rule_type eq 'LEAF') {
     $self->{rule}->{$rule_name}->{leaf_info} = shift @copy_of_rule;
     $self->{rule}->{$rule_name}->{regex_match} =
@@ -719,17 +694,20 @@ sub add_rule {
   }
   else {
     if ($rule_type eq 'AND') {
-      $self->{rule}->{$rule_name}->{minimum_child} = 1;
-      $self->{rule}->{$rule_name}->{maximum_child} = 1;
+      $self->{rule}->{$rule_name}->{and_rule} = 1;
     }
     elsif ($rule_type eq 'OR') {
-      $self->{rule}->{$rule_name}->{minimum_child} = 0;
-      $self->{rule}->{$rule_name}->{maximum_child} = 1;
       $self->{rule}->{$rule_name}->{or_rule} = 1;
     }
     elsif ($rule_type eq 'MULTIPLE') {
-      $self->{rule}->{$rule_name}->{minimum_child} = shift @copy_of_rule;
+      my $min =
+       $self->{rule}->{$rule_name}->{minimum_child} = shift @copy_of_rule;
+      my $max =
       $self->{rule}->{$rule_name}->{maximum_child} = shift @copy_of_rule;
+      if (($max && ($min > $max)) || ($min < 0) || $min != int($min)
+       || $max != int($max)) {
+        croak("Illegal bound(s) $min and $max on $rule_name");
+      }
     }
     else {
       croak "Bad rule type $rule_type on rule $rule_name\n";
@@ -777,7 +755,7 @@ sub add_rule {
        {alias => $alias, name => $name};
     }
     $self->{rule}->{$rule_name}->{subrule_list_count} =
-     $#{$self->{rule}->{$rule_name}->{subrule_list}};
+     scalar(@{$self->{rule}->{$rule_name}->{subrule_list}});
     foreach my $subrule (@{$self->{rule}->{$rule_name}->{subrule_list}}) {
       if (defined $subrule->{alias}) {
            update_count($rule_type,
@@ -792,6 +770,10 @@ sub add_rule {
         }
       }
     }
+    $self->{rule}->{$rule_name}->{sub_rule_name} =
+     $self->{rule}->{$rule_name}->{subrule_list}->[0]->{name};
+    $self->{rule}->{$rule_name}->{sub_alias} =
+     $self->{rule}->{$rule_name}->{subrule_list}->[0]->{alias};
   }
 }
 
@@ -917,7 +899,7 @@ sub set_up_full_rule_set {
     croak "Unreachable rules: ".join("\n",@unreachable_rules)."\n";
   }
 
-  $self->generate_evaluate_subroutines;
+#  $self->generate_evaluate_subroutines;
 }
 
 sub which_parameters_are_arrays {
@@ -974,96 +956,88 @@ sub new_unevaluate_tree_node {
 sub new_evaluate_tree_node {
   my $self = shift;
   my $parameters = shift;
-  my $node = $parameters->{node};
+  my $nodes = $parameters->{nodes};
   my $object = $parameters->{object};
   my $current_value = $parameters->{current_value};
   my $rules_details = $self->{rule};
   my @results;
 
-  my $rule_name = $node->{name};
-  my $params_to_eval = $node->{parameters};
-  my $subroutine_to_run = $rules_details->{$rule_name}->{parsing_evaluation};
+  foreach my $node (@$nodes) {
+    my $rule_name = $node->{name};
+    my $params_to_eval = $node->{parameters};
+    my $rule = $rules_details->{$rule_name};
+    my $subroutine_to_run = $rule->{parsing_evaluation};
 
-  if ($rules_details->{$rule_name}->{use_parse_match}) {
-    $params_to_eval = $node->{parse_match};
-    if ($self->{remove_white_space}) {
-      $params_to_eval =~ s/^\s*//s;
-      $params_to_eval =~ s/\s*$//s;
+    if ($rule->{use_parse_match}) {
+      $params_to_eval = $node->{parse_match};
+      if ($self->{remove_white_space}) {
+        $params_to_eval =~ s/^\s*//s;
+        $params_to_eval =~ s/\s*$//s;
+      }
     }
-  }
-  my $alias = $node->{alias};
+    my $alias = $node->{alias};
 
-  my $cv;
-  if ($subroutine_to_run) {
-    @results = &$subroutine_to_run($params_to_eval, \$object,
-     $current_value);
-    $cv = $node->{computed_value} = $results[0];
-  }
-  else {
-    $cv = $node->{computed_value} = $params_to_eval;
-  }
-
-  if (my $parent = $node->{parent}) {
-    if (defined $node->{parse_match} &&
-     (ref $node->{parse_match} eq '')) {
-      $parent->{parse_match} .= $node->{parse_match};
+    my $cv;
+    if ($subroutine_to_run) {
+      @results = &$subroutine_to_run($params_to_eval, \$object,
+       $current_value);
+      $cv = $results[0];
     }
-    my $parent_name = $parent->{name};
-  
-    if (defined $alias) {
-      if ($rules_details->{$parent_name}->{rule_count}->{$alias} > 1) {
-        push @{$parent->{parameters}->{$alias}}, $cv;
-        $node->{passed_params}->{$alias} = 1;
+    else {
+      if ($rule->{generated} || $self->{do_not_compress_eval}) {
+        $cv = $params_to_eval;
+      }
+      elsif ((ref $params_to_eval eq 'HASH') && (keys %$params_to_eval == 1)) {
+        ($cv) = values %$params_to_eval;
+      }
+      elsif (defined $params_to_eval) {
+        $cv = $params_to_eval;
       }
       else {
-        $parent->{parameters}->{$alias} = $cv;
-        $node->{passed_params}->{$alias} = 0;
+        $cv = '';
       }
     }
-    else { # !defined alias
-      foreach my $key (keys %$cv) {
-        if ($rules_details->{$rule_name}->{rule_count}->{$key} > 1) {
-          if (scalar(@{$cv->{$key}})) {
-            push @{$parent->{parameters}->{$key}}, @{$cv->{$key}};
-            $node->{passed_params}->{$key} = scalar(@{$cv->{$key}});
-          }
-        }
-        elsif ($rules_details->{$parent_name}->{rule_count}->{$key} > 1) {
-          push @{$parent->{parameters}->{$key}}, $cv->{$key};
-          $node->{passed_params}->{$key} = 1;
+    $node->{computed_value} = $cv;
+
+    if (my $parent = $node->{parent}) {
+      if (defined $node->{parse_match} &&
+       (ref $node->{parse_match} eq '')) {
+        $parent->{parse_match} .= $node->{parse_match};
+      }
+      my $parent_name = $parent->{name};
+    
+      if (defined $alias) {
+        if ($rules_details->{$parent_name}->{rule_count}->{$alias} > 1) {
+          push @{$parent->{parameters}->{$alias}}, $cv;
+          $node->{passed_params}->{$alias} = 1;
         }
         else {
-          $parent->{parameters}->{$key} = $cv->{$key};
-          $node->{passed_params}->{$key} = 0;
+          $parent->{parameters}->{$alias} = $cv;
+          $node->{passed_params}->{$alias} = 0;
+        }
+      }
+      else { # !defined alias
+        foreach my $key (keys %$cv) {
+          if ($rules_details->{$rule_name}->{rule_count}->{$key} > 1) {
+            if (scalar(@{$cv->{$key}})) {
+              push @{$parent->{parameters}->{$key}}, @{$cv->{$key}};
+              $node->{passed_params}->{$key} = scalar(@{$cv->{$key}});
+            }
+          }
+          elsif ($rules_details->{$parent_name}->{rule_count}->{$key} > 1) {
+            push @{$parent->{parameters}->{$key}}, $cv->{$key};
+            $node->{passed_params}->{$key} = 1;
+          }
+          else {
+            $parent->{parameters}->{$key} = $cv->{$key};
+            $node->{passed_params}->{$key} = 0;
+          }
         }
       }
     }
   }
 
   return @results;
-}
-
-sub bottom_up_depth_first_search { #left to right
-  my $tree = shift;
-  my @qresults;
-  my @queue = ($tree);
-  while (my $node = pop @queue) {
-    unshift @qresults, $node;
-    foreach my $child (@{$node->{children}}) {
-      push @queue, $child;
-    }
-  }
-  return @qresults;
-}
-
-sub do_tree_evaluation {
-  my $self = shift;
-  my $parameters = shift;
-  my $tree = $parameters->{tree};
-  foreach my $node (bottom_up_depth_first_search($tree)) {
-    $self->new_evaluate_tree_node({node=>$node});
-  }
-  return $tree->{computed_value};
 }
 
 1;
@@ -1192,6 +1166,9 @@ removed from the input string, though reattached if backtracking occurs.
 The text LEAF is optional, regexp's are assumed to be leaves,  but then there
 can be no EVALUATION routine for that leaf.
 
+If the regexp matches but is empty, the matched value is set to an empty
+string as opposed to an undefined value.
+
 Examples (equivalent):
 
   LEAF(qr/xx\w+/)
@@ -1268,6 +1245,10 @@ Examples (equivalent):
   Z('rule_1')
 
   MULTIPLE('rule_1', 0, 1)
+
+to get one or more:
+
+  MULTIPLE('rule_2', 1, 0)
 
 =head3 SIMILARITY BETWEEN RULE TYPES.
 
@@ -1590,8 +1571,7 @@ This is the routine:
 =head4 Generic Evaluation Routine 2
 
 The second default evaluation routine will be used if do_not_compress_eval
-is set when creating the parser.  It does not remove the names of the rules
-and the code is simply:
+is set when creating the parser.  It is simply:
 
   sub return_self_routine {
     return shift;

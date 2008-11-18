@@ -1,5 +1,11 @@
 Revision history for Perl extension Parse::Stallion.
 
+0.4
+     Removed internal function calls to make faster.
+
+     Ensured that default evaluation routines on empty string
+     will return empty string instead of a undefined value.
+
 0.3
      Fix UNEVAL if given no subroutine
 

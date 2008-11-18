@@ -12,7 +12,7 @@ my %parsing_rules_with_min_first = (
     return $_[0]->{parse_expression}})
  ),
  parse_expression => M(
-   'pe', 'match_min_first', USE_PARSE_MATCH
+   'pe', 'match_min_first', USE_PARSE_MATCH()
  ),
  pe => L(
    qr/./
@@ -55,7 +55,7 @@ is ($result,'qxxx', 'without min parser');
 
 $result = $with_min_parser->parse_and_evaluate({parse_this=>"xxx"});
 
-is ($result,undef, 'no q min parser');
+is ($result,'', 'no q min parser');
 
 $result = $without_min_parser->parse_and_evaluate({parse_this=>"xxx"});
 

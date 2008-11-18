@@ -86,14 +86,14 @@ is ($result->{parse_succeeded},1, 'simple middle parse');
 is ($result->{parse_succeeded},1, 'two list middle parse');
 
 ($x, $result) =
- eval{$pe_parser->parse_and_evaluate({parse_this=>"a,bc middle def"})};
+ $pe_parser->parse_and_evaluate({parse_this=>"a,bc middle def"});
 
 is ($result->{parse_succeeded},0, 'illegal middle parse');
 
 #print STDERR "illmp ".$pe_parser->{parse_succeeded}."\n";
 
 ($x, $result) =
- eval{$pe_parser->parse_and_evaluate({parse_this=>"a,bc,de,f"})};
+ $pe_parser->parse_and_evaluate({parse_this=>"a,bc,de,f"});
 is ($result->{parse_succeeded},1, 'legal list div 4');
 
 ($x, $result) =
@@ -200,8 +200,6 @@ is_deeply
           2,
           'string_list__XZ__2',
           4,
-          'string_list__XZ__2',
-          4,
           'string_list__XZ__1',
           4,
           'string_list__XZ__2',
@@ -210,11 +208,7 @@ is_deeply
           4,
           'string_list__XZ__2',
           4,
-          'string_list__XZ__2',
-          4,
           'string_list__XZ__1',
-          4,
-          'string_list',
           4,
           'string_list',
           4,
@@ -242,8 +236,6 @@ is_deeply
           15,
           'string_list__XZ__2',
           16,
-          'string_list__XZ__2',
-          16,
           'string_list__XZ__1',
           16,
           'string_list__XZ__2',
@@ -252,15 +244,9 @@ is_deeply
           16,
           'string_list__XZ__2',
           16,
-          'string_list__XZ__2',
-          16,
           'string_list__XZ__1',
           16,
           'string_list',
-          16,
-          'string_list',
-          16,
-          'same_sized_lists',
           16,
           'same_sized_lists',
           16,
@@ -271,10 +257,8 @@ is_deeply
           'start_expression__XZ__1',
           16,
           'start_expression',
-          16,
-          'start_expression',
           16
-        ]
+        ],
 ,'trace test');
 
 my %multi_test_rules = (
