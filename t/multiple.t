@@ -9,9 +9,9 @@ my %y_rules = (
  start_expression => M(qr/y/),
 );
 
-my $y_parser = new Parse::Stallion({
-  rules_to_set_up_hash => \%y_rules,
-  start_rule => 'start_expression',
+my $y_parser = new Parse::Stallion(
+  \%y_rules,
+  {start_rule => 'start_expression',
 });
 
 
@@ -36,8 +36,9 @@ my %x_rules = (
  start_expression => M(qr/x/,0,1),
 );
 
-my $x_parser = new Parse::Stallion({
-  rules_to_set_up_hash => \%x_rules,
+my $x_parser = new Parse::Stallion(
+  \%x_rules,
+  {
   start_rule => 'start_expression',
 });
 
@@ -61,8 +62,9 @@ my %w_rules = (
  start_expression => M(qr/w/,1,1),
 );
 
-my $w_parser = new Parse::Stallion({
-  rules_to_set_up_hash => \%w_rules,
+my $w_parser = new Parse::Stallion(
+  \%w_rules,
+  {
   start_rule => 'start_expression',
 });
 
@@ -86,8 +88,9 @@ my %v_rules = (
  start_expression => M(qr/v/,2,3),
 );
 
-my $v_parser = new Parse::Stallion({
-  rules_to_set_up_hash => \%v_rules,
+my $v_parser = new Parse::Stallion(
+  \%v_rules,
+  {
   start_rule => 'start_expression',
 });
 
@@ -111,9 +114,9 @@ my %u_rules = (
  start_expression => M(qr/u/,3,0),
 );
 
-my $u_parser = new Parse::Stallion({
-  rules_to_set_up_hash => \%u_rules,
-  start_rule => 'start_expression',
+my $u_parser = new Parse::Stallion(
+  \%u_rules,
+  {start_rule => 'start_expression',
 });
 
 $result = $u_parser->parse_and_evaluate('');
@@ -136,9 +139,9 @@ my %t_rules = (
  start_expression => Z(qr/t/),
 );
 
-my $t_parser = new Parse::Stallion({
-  rules_to_set_up_hash => \%t_rules,
-  start_rule => 'start_expression',
+my $t_parser = new Parse::Stallion(
+  \%t_rules,
+  {start_rule => 'start_expression',
 });
 
 $result = $t_parser->parse_and_evaluate('');
@@ -161,9 +164,9 @@ my %s_rules = (
  start_expression => M(qr/s/,0,2),
 );
 
-my $s_parser = new Parse::Stallion({
-  rules_to_set_up_hash => \%s_rules,
-  start_rule => 'start_expression',
+my $s_parser = new Parse::Stallion(
+  \%s_rules,
+  {start_rule => 'start_expression',
 });
 
 $result = $s_parser->parse_and_evaluate('');
@@ -187,9 +190,9 @@ my %r_rules = (
  start_expression => M(qr/r/,1,0),
 );
 
-my $r_parser = new Parse::Stallion({
-  rules_to_set_up_hash => \%r_rules,
-  start_rule => 'start_expression',
+my $r_parser = new Parse::Stallion(
+  \%r_rules,
+  {start_rule => 'start_expression',
 });
 
 $result = $r_parser->parse_and_evaluate('');
@@ -213,9 +216,9 @@ my %b_rules = (
  start_expression => M(qr/b/,'match_min_first'),
 );
 
-my $b_parser = new Parse::Stallion({
-  rules_to_set_up_hash => \%b_rules,
-  start_rule => 'start_expression',
+my $b_parser = new Parse::Stallion(
+  \%b_rules,
+  {start_rule => 'start_expression',
 });
 
 
@@ -241,9 +244,9 @@ my %c_rules = (
  start_expression => M(qr/c/,0,1,'match_min_first'),
 );
 
-my $c_parser = new Parse::Stallion({
-  rules_to_set_up_hash => \%c_rules,
-  start_rule => 'start_expression',
+my $c_parser = new Parse::Stallion(
+  \%c_rules,
+  {start_rule => 'start_expression',
 });
 
 $result = $c_parser->parse_and_evaluate('');
@@ -266,9 +269,9 @@ my %d_rules = (
  start_expression => M(qr/d/,1,1,'match_min_first'),
 );
 
-my $d_parser = new Parse::Stallion({
-  rules_to_set_up_hash => \%d_rules,
-  start_rule => 'start_expression',
+my $d_parser = new Parse::Stallion(
+  \%d_rules,
+  {start_rule => 'start_expression',
 });
 
 $result = $d_parser->parse_and_evaluate('');
@@ -291,9 +294,9 @@ my %e_rules = (
  start_expression => M(qr/e/,2,3,'match_min_first'),
 );
 
-my $e_parser = new Parse::Stallion({
-  rules_to_set_up_hash => \%e_rules,
-  start_rule => 'start_expression',
+my $e_parser = new Parse::Stallion(
+  \%e_rules,
+  {start_rule => 'start_expression',
 });
 
 $result = $e_parser->parse_and_evaluate('');
@@ -316,9 +319,9 @@ my %f_rules = (
  start_expression => M(qr/f/,3,0,'match_min_first'),
 );
 
-my $f_parser = new Parse::Stallion({
-  rules_to_set_up_hash => \%f_rules,
-  start_rule => 'start_expression',
+my $f_parser = new Parse::Stallion(
+  \%f_rules,
+  {start_rule => 'start_expression',
 });
 
 $result = $f_parser->parse_and_evaluate('');
@@ -342,9 +345,9 @@ my %h_rules = (
  start_expression => M(qr/h/,0,2,'match_min_first'),
 );
 
-my $h_parser = new Parse::Stallion({
-  rules_to_set_up_hash => \%h_rules,
-  start_rule => 'start_expression',
+my $h_parser = new Parse::Stallion(
+  \%h_rules,
+  {start_rule => 'start_expression',
 });
 
 $result = $h_parser->parse_and_evaluate('');
@@ -368,9 +371,9 @@ my %i_rules = (
  start_expression => M(qr/i/,1,0,'match_min_first'),
 );
 
-my $i_parser = new Parse::Stallion({
-  rules_to_set_up_hash => \%i_rules,
-  start_rule => 'start_expression',
+my $i_parser = new Parse::Stallion(
+  \%i_rules,
+  {start_rule => 'start_expression',
 });
 
 $result = $i_parser->parse_and_evaluate('');

@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #Copyright 2007 Arthur S Goldstein
-use Test::More tests => 5;
+use Test::More tests => 7;
 BEGIN { use_ok('Parse::Stallion') };
 
 my %calculator_rules = (
@@ -16,6 +16,7 @@ my %calculator_rules = (
 #use Data::Dumper;print STDERR "to expression is ".Dumper(\@_)."\n";
     my $plus_or_minus = $_[0]->{plus_or_minus};
     my $value = shift @$to_combine;
+#print STDERR "to combine count ".$#{$to_combine}."\n";
     for my $i (0..$#{$to_combine}) {
       if ($plus_or_minus->[$i] eq '+') {
         $value += $to_combine->[$i];
@@ -23,6 +24,7 @@ my %calculator_rules = (
       else {
         $value -= $to_combine->[$i];
       }
+#print STDERR "I is $i and v $value\n";
     }
     return $value;}
    )
@@ -89,27 +91,23 @@ number => LEAF(
  ))
 ,
 left_parenthesis => LEAF(
-  qr/\s*\(\s*/,
- ),
+  qr/\s*(\()\s*/, )
 ,
 right_parenthesis => LEAF(
-  qr/\s*\)\s*/
- ),
+  qr/\s*(\))\s*/, 
+ )
 ,
 power_of => LEAF(
-  qr/\s*\*\*\s*/
+  qr/\s*\*\*\s*/, E('**')
  ),
 ,
 plus_or_minus => OR(
   'plus', 'minus'
  )
 ,
-plus => LEAF(
-  qr/\s*\+\s*/
- )
-,
+plus => qr/\s*(\+)\s*/,
 minus => LEAF(
-  qr/\s*\-\s*/
+  qr/\s*\-\s*/, E('-')
  ),
 ,
 times_or_divide_or_modulo => OR(
@@ -117,29 +115,41 @@ times_or_divide_or_modulo => OR(
  )
 ,
 modulo => LEAF(
-  qr/\s*\%\s*/
+  qr/\s*\%\s*/, E('%')
  )
 ,
 times => LEAF(
-  qr/\s*\*\s*/
+  qr/\s*\*\s*/, E('*')
  )
 ,
 divided_by => LEAF(
-  qr/\s*\/\s*/
+  qr/\s*\/\s*/, E('/')
  )
 ,
 );
 
-my $calculator_parser = new Parse::Stallion({
-  start_rule => 'start_expression',
-  rules_to_set_up_hash => \%calculator_rules});
+my $calculator_parser = new Parse::Stallion(
+  \%calculator_rules,
+  { start_rule => 'start_expression'
+});
 
-my ($result, $x) =
+my $result =
  $calculator_parser->parse_and_evaluate("7+4");
 print "Result is $result\n";
 is ($result, 11, "simple plus");
 #use Data::Dumper;print STDERR "parse trace is ".Dumper($x->{parse_trace})."\n";
 #print STDERR "parse tree is ".$x->{tree}->stringify."\n";
+
+($result, $x) =
+ $calculator_parser->parse_and_evaluate("7 + 4");
+print "Result is $result\n";
+is ($result, 11, "simple plus with spaces");
+
+
+($result, $x) = $calculator_parser->parse_and_evaluate("5+8+3 + 4.5");
+#use Data::Dumper;print STDERR "parse trace is ".Dumper($x->{parse_trace})."\n";
+print "Result is $result\n";
+is ($result, 20.5, "simple half plus");
 
 $result =
  $calculator_parser->parse_and_evaluate("7*4");
@@ -151,11 +161,15 @@ $result =
 print "Result is $result\n";
 is ($result, 31, "simple plus and multiply");
 
-($x, $result) =
+$result = {};
+$x =
  eval {
- $calculator_parser->parse_and_evaluate("3+-+7*4")};
+ $calculator_parser->parse_and_evaluate("3+-+7*4", {parse_info=>$result,
+  trace => 1})};
+#print STDERR $@."  \n";
 
 is($result->{parse_succeeded},0,"bad parse on parse and evaluate");
+#use Data::Dumper; print STDERR Dumper($result);
 
 
 print "\nAll done\n";

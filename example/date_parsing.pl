@@ -9,7 +9,7 @@ $rule{start_date} =
    E(sub {
     my $seconds_since_epoch = $_[0]->{parsed_date};
     my ($seconds, $minutes, $hour, $mday, $month, $year) =
-     gmtime($seconds_since_epoch);
+     localtime($seconds_since_epoch);
     $month++;  #Have January be 01 instead of 00.
     if ($month < 10) { $month = '0'.$month;};
     if ($mday < 10) { $mday = '0'.$mday;};
@@ -44,7 +44,7 @@ $rule{standard_date} =
     my $month = $1 -1;
     my $mday = $2;
     my $year = $3;
-    return timegm(0,0,0,$mday, $month, $year);
+    return timelocal(0,0,0,$mday, $month, $year);
   })
 );
 $rule{special_date} =
@@ -60,7 +60,7 @@ $rule{just_time_plus_list} =
 );
 $rule{just_time_minus_list} =
   A('just_time', 'minus', 'time',
-   E(sub {return $_[0]->{just_time} - $_[2]->{time}})
+   E(sub {return $_[0]->{just_time} - $_[0]->{time}})
 );
 $rule{just_time} = L(
   qr(\d+\s*[hdms])i,
@@ -84,25 +84,22 @@ $rule{just_time} = L(
   })
 );
 
-my $date_parser = new Parse::Stallion({
-  rules_to_set_up_hash => \%rule,
-  start_rule => 'start_date',
-});
+my $date_parser = new Parse::Stallion(\%rule);
 
-$result = $date_parser->parse_and_evaluate({parse_this=>"now"});
+$result = $date_parser->parse_and_evaluate("now");
 print "now is $result\n";
 
 $result = $date_parser->parse_and_evaluate("now - 30s");
 print "now minus 30 seconds is $result\n";
 
-$result = $date_parser->parse_and_evaluate({parse_this=>"now + 70h"});
+$result = $date_parser->parse_and_evaluate("now + 70h");
 print "now plus 70 hours is $result\n";
 
-$result = $date_parser->parse_and_evaluate({parse_this=>"now + 70H + 45s"});
+$result = $date_parser->parse_and_evaluate("now + 70H + 45s");
 print "now plus 70 hours and 45 seconds is $result\n";
 
 $result = $date_parser->parse_and_evaluate(
- {parse_this=>"6/6/2008 + 2d + 3h"});
+ "6/6/2008 + 2d + 3h");
 print "2 days and 3 hours after 6/6/2008 is $result\n";
 
 print "\nAll done\n";

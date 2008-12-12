@@ -7,6 +7,7 @@ example/csv.pl
 example/date_parsing.pl
 example/how_many.pl
 example/object_string.pl
+example/stallion.html
 t/alias_test.t
 t/basic_simple_calc.t
 t/calc_scan_with_no_end.t

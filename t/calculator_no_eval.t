@@ -70,9 +70,10 @@ divided_by => LEAF(
 ,
 );
 
-my $calculator_parser = new Parse::Stallion({do_not_compress_eval => 1,
- rules_to_set_up_hash => \%calculator_rules,
- start_rule=> 'start_expression'});
+my $calculator_parser = new Parse::Stallion(
+ \%calculator_rules,
+ {do_not_compress_eval => 1,
+  start_rule=> 'start_expression'});
 
 my $result =
  $calculator_parser->parse_and_evaluate("7+4");
@@ -131,8 +132,9 @@ number => LEAF(
 #print STDERR "before sett scr are ".Dumper(\%simp_calculator_rules)."\n";
 #print STDERR "setting simp\n";
 my $simp_calculator_parser =
- new Parse::Stallion({do_not_compress_eval => 1,
-  rules_to_set_up_hash => \%simp_calculator_rules,
+ new Parse::Stallion(
+  \%simp_calculator_rules,
+  {do_not_compress_eval => 1,
   start_rule => 'start_expression'});
 
 $result =
@@ -156,9 +158,10 @@ is_deeply($result,
 
 #print STDERR "setting n simp\n";
 my $n_simp_calculator_parser =
- new Parse::Stallion({do_not_compress_eval => 0,
-  rules_to_set_up_hash => \%simp_calculator_rules,
-  start_rule => 'start_expression'});
+ new Parse::Stallion(
+  \%simp_calculator_rules,
+  {do_not_compress_eval => 0,
+   start_rule => 'start_expression'});
 
 #print STDERR "after sett scr are ".Dumper(\%simp_calculator_rules)."\n";
 
@@ -181,9 +184,10 @@ is_deeply($result,
 
 #print STDERR "setting de simp\n";
 my $de_simp_calculator_parser =
- new Parse::Stallion({do_not_compress_eval => 1,
+ new Parse::Stallion(
+  \%simp_calculator_rules,
+  {do_not_compress_eval => 1,
   do_evaluation_in_parsing => 1,
-  rules_to_set_up_hash => \%simp_calculator_rules,
   start_rule => 'start_expression'});
 
 $result =
@@ -207,9 +211,10 @@ is_deeply($result,
 
 #print STDERR "setting de n simp\n";
 my $de_n_simp_calculator_parser =
- new Parse::Stallion({do_not_compress_eval => 0,
+ new Parse::Stallion(
+  \%simp_calculator_rules,
+  {do_not_compress_eval => 0,
   do_evaluation_in_parsing => 1,
-  rules_to_set_up_hash => \%simp_calculator_rules,
   start_rule => 'start_expression'});
 
 $result =

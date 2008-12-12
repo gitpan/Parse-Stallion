@@ -153,16 +153,16 @@ information => M(
 
 
 use Parse::Stallion;
-my $event_parser = new Parse::Stallion({
- rules_to_set_up_hash => \%event_rules,
- start_rule => 'event',
+my $event_parser = new Parse::Stallion(
+ \%event_rules,
+  { start_rule => 'event',
  do_evaluation_in_parsing => 1,
 });
 
 my $event_in = 'when: yesterday
 what: nothing';
 
-my $result = $event_parser->parse_and_evaluate({parse_this=>$event_in, trace => 0});
+my $result = $event_parser->parse_and_evaluate($event_in);
 #use Data::Dumper;
 #print STDERR "Results out ".(Dumper($ne_result))."\n";
 #foreach my $tr (@{$result->{parse_trace}}) {

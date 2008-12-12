@@ -104,9 +104,9 @@ divided_by => qr/\s*\/\s*/
 ,
 );
 
-my $calculator_parser = new Parse::Stallion({
-  rules_to_set_up_hash => \%calculator_rules,
-  start_rule => 'start_expression'});
+my $calculator_parser = new Parse::Stallion(
+  \%calculator_rules,
+  {start_rule => 'start_expression'});
 
 my $result =
  $calculator_parser->parse_and_evaluate("7+4");

@@ -1,5 +1,20 @@
 Revision history for Perl extension Parse::Stallion.
 
+0.50
+     EVAL can take more than just a function.
+
+     Leaf can take parenthesized regex'es and use first to set value,
+      got rid of remove_white_space.
+
+     Changed parameters to creating a parser, replaced
+      rules_to_set_up_hash parameter by having it be first parameter.
+
+     Changed paramters to parse_and_evaluate, object to be parsed is
+     its own parameter.
+
+     Changed parse_info to a hash passed in instead of using wantarray
+     context.  This seems more consistent with other programming langauges.
+
 0.4
      Removed internal function calls to make faster.
 

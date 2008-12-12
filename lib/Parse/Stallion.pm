@@ -5,7 +5,7 @@ use Carp;
 use strict;
 use warnings;
 use 5.006;
-our $VERSION = '0.4';
+our $VERSION = '0.50';
 
 sub stringify {
   my $self = shift;
@@ -54,7 +54,13 @@ sub parse {
   my $parameters = shift;
   my $object_being_parsed = $parameters->{parse_this};
   my $start_node = $parsing_info->{start_rule};
+  my $parse_trace = $parameters->{parse_trace};
   my $max_steps = $parameters->{max_steps} || $parsing_info->{max_steps};
+  my $no_max_steps = 0;
+  if ($max_steps < 0) {
+    $no_max_steps = 1;
+    $max_steps = 1000000;
+  }
   my $rule = $parsing_info->{rule};
   my @bottom_up_left_to_right;
 
@@ -66,7 +72,6 @@ sub parse {
   if ($increasing_value = $parsing_info->{increasing_value}) {
     $current_value = &{$increasing_value}($object_being_parsed);
   }
-  my $trace = $parsing_info->{trace};
 
   my $any_minimize_children = $parsing_info->{any_minimize_children} || 0;
   my $any_parse_forward = $parsing_info->{any_parse_forward} || 0;
@@ -82,7 +87,6 @@ sub parse {
   };
   bless($tree, 'Parse::Stallion::Talon');
 
-  my @parse_trace;
   my $current_node = $tree;
   my $moving_forward = 1;
   my $moving_down = 1;
@@ -104,12 +108,12 @@ sub parse {
       my $current_node_name = $current_node->{name};
       my $current_rule = $rule->{$current_node_name};
 
-      if ($trace) {
+      if ($parse_trace) {
         my $parent_step = 0;
         if ($current_node->{parent}) {
           $parent_step = $current_node->{parent}->{steps};
         }
-        push @parse_trace, {
+        push @$parse_trace, {
          rule_name => $current_node_name,
          moving_forward => $moving_forward,
          moving_down => $moving_down,
@@ -122,47 +126,7 @@ sub parse {
         $message = '';
       }
       if ($moving_forward) {
-        if ($current_rule->{leaf_rule}) {
-          $message = 'Leaf not matched' if $trace;
-          my ($able_to_modify, $match);
-          if ($any_parse_forward && $current_rule->{parse_forward}) {
-            ($able_to_modify, $match) =
-             &{$current_rule->{parse_forward}}
-             (\$object_being_parsed,
-              $current_rule->{leaf_info},
-              $current_value
-             );
-            if ($increasing_value) {
-              $current_value = &{$increasing_value}($object_being_parsed);
-            }
-            if ($current_node->{value_when_entered} > $current_value) {
-              croak ("Moving forward on $current_node_name"
-               ." resulted in backwards progress");
-            }
-          }
-          else {
-            my $x = $current_rule->{regex_match};
-            pos $object_being_parsed = $current_value;
-            if ($object_being_parsed =~ /$x/g) {
-              $match = $1;
-              if (!defined $match) {$match = ''};
-              $able_to_modify = 1;
-              $current_value = pos $object_being_parsed;
-            }
-            else {
-              $able_to_modify = 0;
-            }
-          }
-          if (!$able_to_modify) {
-            $remove_node = 1;
-          }
-          else {
-            $current_node->{parse_match} = $match;
-            $node_completed = 1;
-            $message = 'Leaf matched' if $trace;
-          }
-        }
-        elsif ($current_rule->{or_rule}) {
+        if ($current_rule->{or_rule}) {
           if ($moving_down) {
             $new_rule = $current_rule->{subrule_list}->[0];
             $new_rule_name = $new_rule->{name};
@@ -216,7 +180,9 @@ sub parse {
               if ($current_value !=
                &{$increasing_value}($object_being_parsed)) {
                 croak ("Backtrack changed increasing value function
-                 step $steps rule $current_node_name");
+                 step $steps rule $current_node_name
+                 current value $current_value inc val ".
+                 &{$increasing_value}($object_being_parsed));
               }
             }
             if ($end_parse_now) {
@@ -277,20 +243,76 @@ sub parse {
 
       if ($create_child) {
         $create_child = 0;
-        if ($blocked{$new_rule_name}->{$current_value}) {
+        my $new_rule = $rule->{$new_rule_name};
+        if ($blocked{$new_rule_name}{$current_value}) {
           $message =
            "Rule $new_rule_name blocked before on value $current_value"
-           if $trace;
+           if $parse_trace;
           $moving_forward = 0;
           $moving_down = 0;
         }
-        elsif (!($rule->{$new_rule_name}->{leaf_rule}) &&
-         ($active_rules_values{$new_rule_name}->{$current_value}++)) {
+        elsif ($new_rule->{leaf_rule}) {
+          my $previous_value = $current_value;
+          my ($able_to_modify, $match, $re_match);
+          if ($any_parse_forward && $new_rule->{parse_forward}) {
+            ($able_to_modify, $match) =
+             &{$new_rule->{parse_forward}}
+             (\$object_being_parsed,
+              $new_rule->{leaf_info},
+              $current_value
+             );
+            if ($increasing_value) {
+              $current_value = &{$increasing_value}($object_being_parsed);
+            }
+            if ($current_node->{value_when_entered} > $current_value) {
+              croak ("Moving forward on $current_node_name"
+               ." resulted in backwards progress");
+            }
+          }
+          else {
+            my $x = $new_rule->{regex_match};
+            pos $object_being_parsed = $current_value;
+            if ($object_being_parsed =~ /$x/cg) {
+              $match = $1;
+              $re_match = $2;
+              if (!defined $match) {$match = ''};
+              $able_to_modify = 1;
+              $current_value = pos $object_being_parsed;
+            }
+            else {
+              $able_to_modify = 0;
+            }
+          }
+          if (!$able_to_modify) {
+            $moving_forward = 0;
+            $moving_down = 0;
+            $message .= 'Leaf not matched' if $parse_trace;
+          }
+          else {
+            my $new_node = {
+              name => $new_rule_name,
+              alias => $new_alias,
+              steps => $steps,
+              parent => $current_node,
+              value_when_entered => $previous_value,
+              children => [],
+              child_count => 0,
+              parse_match => $match,
+              re_parse_match => $re_match,
+            };
+            push @{$current_node->{children}}, $new_node;
+            $current_node->{child_count}++;
+            $message .= 'Leaf matched' if $parse_trace;
+            $current_node = $new_node;
+            $node_completed = 1;
+          }
+        }
+        elsif ($active_rules_values{$new_rule_name}{$current_value}++) {
            croak ("$new_rule_name duplicated in parse on same string");
         }
         else {
           $message = "Creating child $new_rule_name for node created on step "
-           .$current_node->{steps} if $trace;
+           .$current_node->{steps} if $parse_trace;
           my $new_node = {
             name => $new_rule_name,
             alias => $new_alias,
@@ -302,15 +324,17 @@ sub parse {
           };
           push @{$current_node->{children}}, $new_node;
           $current_node->{child_count}++;
-          $current_node = $new_node;
           $moving_forward = 1;
           $moving_down = 1;
+          $current_node = $new_node;
         }
       }
-      elsif ($node_completed) {
+
+      if ($node_completed) {
         $node_completed = 0;
         if ($current_node->{ventured}->{$current_value}++) {
-          $message .= " Already ventured beyond this node at value" if $trace;
+          $message .= " Already ventured beyond this node at value"
+           if $parse_trace;
           $moving_forward = 0;
           $moving_down = 1;
         }
@@ -326,13 +350,13 @@ sub parse {
           if (defined $reject && $reject) {
             $moving_forward = 0;
             $moving_down = 1;
-            $message .= " Node rejected" if $trace;
+            $message .= " Node rejected" if $parse_trace;
           }
           else {
             push @bottom_up_left_to_right, $current_node;
             $current_node->{'beyond'} = 1;
             $message .= " Completed node created on step ".
-             $current_node->{steps} if $trace;
+             $current_node->{steps} if $parse_trace;
             $moving_down = 0;
             $moving_forward = 1;
             $current_node = $current_node->{parent};
@@ -341,7 +365,7 @@ sub parse {
       }
       elsif ($move_back_to_child) {
         $move_back_to_child = 0;
-        $message .= " Backtracking to child" if $trace;
+        $message .= " Backtracking to child" if $parse_trace;
         $moving_down = 1;
         $moving_forward = 0;
         pop @bottom_up_left_to_right;
@@ -358,11 +382,11 @@ sub parse {
         $moving_forward = 0;
         $moving_down = 0;
         if (!$current_node->{'beyond'}) {
-          $blocked{$current_node_name}->{$current_value} = 1;
+          $blocked{$current_node_name}{$current_value} = 1;
         }
-        delete $active_rules_values{$current_node_name}->{$current_value};
+        delete $active_rules_values{$current_node_name}{$current_value};
         $message .= " Removed node created on step ".$current_node->{steps}
-         if $trace;
+         if $parse_trace;
         $current_node = $current_node->{parent};
         if (defined $current_node) {
           pop @{$current_node->{children}};
@@ -378,26 +402,31 @@ sub parse {
        $moving_down = 1;
        $current_node = $tree;
        $message .= ' . At top of tree but did not parse entire object'
-        if $trace;
+        if $parse_trace;
        pop @bottom_up_left_to_right;
     }
+    if ($no_max_steps && ($steps == $max_steps)) {
+      $max_steps += 1000000;
+    }
   }
-  my %results;
-  $results{start_rule} = $parsing_info->{start_rule};
-  $results{number_of_steps} = $steps;
-  $results{tree} = $tree;
-  $results{parse_trace} = \@parse_trace;
-  $results{bottom_up_left_to_right} = \@bottom_up_left_to_right;
-  if ($moving_forward && $steps < $max_steps) {
-    $results{parse_succeeded} = 1;
+  if ($steps >= $max_steps) {
+    croak ("Not enough steps to do parse, max set at $max_steps");
+  }
+  my $results = $parameters->{parse_info};
+  $results->{start_rule} = $parsing_info->{start_rule};
+  $results->{number_of_steps} = $steps;
+  $results->{tree} = $tree;
+  $results->{bottom_up_left_to_right} = \@bottom_up_left_to_right;
+  if ($moving_forward) {
+    $results->{parse_succeeded} = 1;
     if ($do_evaluation_in_parsing) {
-      $results{parsing_evaluation} = $tree->{computed_value};
+      $results->{parsing_evaluation} = $tree->{computed_value};
     }
   }
   else {
-    $results{parse_succeeded} = 0;
+    $results->{parse_succeeded} = 0;
   }
-  return \%results;
+  return $results;
 }
 
 package Parse::Stallion;
@@ -415,48 +444,40 @@ use File::Spec;
 sub new {
   my $type = shift;
   my $class = ref($type) || $type;
+  my $rules_to_set_up_hash = shift;
   my $parameters = shift;
   my $self = {};
 
   bless $self, $class;
   $self->{separator} = '__XZ__';
-  $self->{max_steps} = $parameters->{max_steps} || 20000;
+  $self->{max_steps} = $parameters->{max_steps} || 100000;
   $self->{self} = $self;
-  if (!defined $parameters->{rules_to_set_up_hash}) {
-    $self->set_up_full_rule_set({rules_to_set_up_hash=>$parameters});
+  $self->{do_evaluation_in_parsing} = $parameters->{do_evaluation_in_parsing}
+   || 0;
+  $self->{do_not_compress_eval} = $parameters->{do_not_compress_eval} || 0;
+  $self->{separator} = $parameters->{separator} || $self->{separator};
+  if (defined $parameters->{parse_forward}) {
+    $self->{leaf_parse_forward} = $parameters->{parse_forward};
+    $self->{any_parse_forward} = 1;
   }
-  else {
-    $self->{remove_white_space} = $parameters->{remove_white_space};
-    $self->{do_evaluation_in_parsing} = $parameters->{do_evaluation_in_parsing}
-     || 0;
-    $self->{do_not_compress_eval} = $parameters->{do_not_compress_eval} || 0;
-    $self->{separator} = $parameters->{separator} || $self->{separator};
-    if (defined $parameters->{parse_forward}) {
-      $self->{leaf_parse_forward} = $parameters->{parse_forward};
-      $self->{any_parse_forward} = 1;
-    }
-    if (defined $parameters->{parse_backtrack}) {
-      $self->{leaf_parse_backtrack} = $parameters->{parse_backtrack};
-      $self->{any_parse_backtrack} = 1;
-    }
-    if (defined $parameters->{increasing_value_function}) {
-      $self->{increasing_value} = $parameters->{increasing_value_function};
-    }
-    $self->set_up_full_rule_set($parameters);
+  if (defined $parameters->{parse_backtrack}) {
+    $self->{leaf_parse_backtrack} = $parameters->{parse_backtrack};
+    $self->{any_parse_backtrack} = 1;
   }
+  if (defined $parameters->{increasing_value_function}) {
+    $self->{increasing_value} = $parameters->{increasing_value_function};
+  }
+  $self->set_up_full_rule_set($rules_to_set_up_hash, $parameters->{start_rule});
   return $self;
 }
 
 sub parse_and_evaluate {
   my $self = shift;
-  my $parameters = shift;
-  if (ref $parameters eq '') {
-    $parameters = {parse_this => $parameters};
-  }
+  my $parse_this = shift;
+  my $parameters = shift || {};
+  $parameters->{parse_this} = $parse_this;
   my $parser = new Parse::Stallion::Parser($self);
-  if (wantarray) {
-    $parser->{trace} = 1;
-  }
+  $parameters->{parse_info} = $parameters->{parse_info} || {};
   my $parser_results = $parser->parse($parameters);
   my $to_return;
   if (!($parser_results->{parse_succeeded})) {
@@ -470,12 +491,7 @@ sub parse_and_evaluate {
      {nodes=>$parser_results->{bottom_up_left_to_right}});
     $to_return = $parser_results->{tree}->{computed_value};
   }
-  if (wantarray) {
-    return $to_return, $parser_results;
-  }
-  else {
-    return $to_return;
-  }
+  return $to_return;
 }
 
 #package rules
@@ -633,17 +649,35 @@ sub add_rule {
     croak ("Bad format of rule $rule_name, cannot create.");
   }
 
+  my $separator = $self->{separator};
   my $base_rule = $rule_name;
   if (defined $parameters->{generated_name}) {
     $self->{rule}->{$rule_name}->{generated} = 1;
     $base_rule = $parameters->{generated_name};
   }
+  elsif ($rule_name =~ /$separator/) {
+    croak ("rule name $rule_name contains separator");
+  }
   my $default_alias = '';
   my @copy_of_rule; #to prevent changing input
   foreach my $sub_rule (@$rule) {
     if (ref $sub_rule eq 'ARRAY' && $sub_rule->[0] eq 'EVAL') {
-      $self->{rule}->{$rule_name}->{parsing_evaluation} = $sub_rule->[1]
-       || croak ("Rule $rule_name Illegal evaluation routine");
+      my $what_to_eval = $sub_rule->[1];
+      if (ref $sub_rule->[1] eq 'CODE') {
+        $self->{rule}->{$rule_name}->{parsing_evaluation} = $what_to_eval;
+      }
+      elsif (ref $sub_rule->[1] eq 'Regexp') {
+        $self->{rule}->{$rule_name}->{parsing_evaluation} = sub {
+           $_[0] =~ $what_to_eval;
+           return $1;
+         };
+        $self->{rule}->{$rule_name}->{use_parse_match} = 1;
+      }
+      else {
+        $self->{rule}->{$rule_name}->{parsing_evaluation} = sub {
+           return $what_to_eval;
+         };
+      }
     }
     elsif (ref $sub_rule eq 'ARRAY' && $sub_rule->[0] eq 'UNEVAL') {
       $self->{rule}->{$rule_name}->{parsing_unevaluation} = $sub_rule->[1]
@@ -732,14 +766,14 @@ sub add_rule {
         if (!defined $alias) {
           $alias = $default_alias;
         }
-        $name = $base_rule.$self->{separator}.
+        $name = $base_rule.$separator.
           ++$self->{unique_name_counter}->{$base_rule};
         $self->add_rule({
          rule_name => $name, rule_definition => LEAF($current_rule),
          generated_name => $base_rule});
       }
       elsif (ref $current_rule eq 'ARRAY') {
-        $name = $base_rule.$self->{separator}.
+        $name = $base_rule.$separator.
           ++$self->{unique_name_counter}->{$base_rule};
         $self->add_rule({
          rule_name => $name, rule_definition => $current_rule,
@@ -848,7 +882,8 @@ sub generate_evaluate_subroutines {
   foreach my $rule (keys %{$self->{rule}}) {
     if (!$self->{rule}->{$rule}->{generated}) {
       if (!$self->{rule}->{$rule}->{parsing_evaluation}) {
-        if ($self->{do_not_compress_eval}) {
+        if ($self->{rule}->{$rule}->{use_parse_match} ||
+         $self->{do_not_compress_eval}) {
           $self->{rule}->{$rule}->{parsing_evaluation} = \&return_self_routine;
         }
         else {
@@ -861,9 +896,8 @@ sub generate_evaluate_subroutines {
 
 sub set_up_full_rule_set {
   my $self = shift;
-  my $parameters = shift;
-  my $rules_to_set_up_hash = $parameters->{rules_to_set_up_hash};
-  my $start_rule = $parameters->{start_rule};
+  my $rules_to_set_up_hash = shift;
+  my $start_rule = shift;
 
   foreach my $hash_rule_name (sort keys %$rules_to_set_up_hash) {
     $self->add_rule({rule_name => $hash_rule_name,
@@ -969,10 +1003,11 @@ sub new_evaluate_tree_node {
     my $subroutine_to_run = $rule->{parsing_evaluation};
 
     if ($rule->{use_parse_match}) {
-      $params_to_eval = $node->{parse_match};
-      if ($self->{remove_white_space}) {
-        $params_to_eval =~ s/^\s*//s;
-        $params_to_eval =~ s/\s*$//s;
+      if (defined $node->{re_parse_match}) {
+        $params_to_eval = $node->{re_parse_match};
+      }
+      else {
+        $params_to_eval = $node->{parse_match};
       }
     }
     my $alias = $node->{alias};
@@ -1000,11 +1035,11 @@ sub new_evaluate_tree_node {
     $node->{computed_value} = $cv;
 
     if (my $parent = $node->{parent}) {
+      my $parent_name = $parent->{name};
       if (defined $node->{parse_match} &&
        (ref $node->{parse_match} eq '')) {
         $parent->{parse_match} .= $node->{parse_match};
       }
-      my $parent_name = $parent->{name};
     
       if (defined $alias) {
         if ($rules_details->{$parent_name}->{rule_count}->{$alias} > 1) {
@@ -1046,7 +1081,7 @@ __END__
 
 =head1 NAME
 
-Parse::Stallion - Backtracking parser with during or after evaluation
+Parse::Stallion - EBNF based regexp backtracking parser and tree evaluator.
 
 =head1 SYNOPSIS
 
@@ -1056,20 +1091,31 @@ Parse::Stallion - Backtracking parser with during or after evaluation
    rule_name_2 => ..rule_definition..,
    ...);
 
-  my $stallion = new Parse::Stallion({
-    rules_to_set_up_hash => \%rules,
-    start_rule => 'rule_name_1', #default is the rule which is not a subrule
+  my $stallion = new Parse::Stallion(
+    \%rules,
+     # usually the following parameters can be omitted deferring to defaults:
+   {start_rule => 'rule_name_1', #default is the rule which is not a subrule
     do_evaluation_in_parsing => 0, #default is 0
-    remove_white_space => 1, #default is 0
-    max_steps => 20000, #default is 20000
+    max_steps => 200000, #default is 100000
+    do_not_compress_eval => 0, #default is 0
+    separator => '__XZ__', #default is '__XZ__'
+    parse_forward => sub {...}, #default is null
+    parse_backtrack => sub {...}, #default is null
+    increasing_value_function => sub {...}, #default is null
   });
 
-  my $result = $stallion->parse_and_evaluate($given_string);
+  my $parse_info_hash = {}; # optional, essentially no impact on performance
+  my $parse_trace = []; # optional, slight impact on performance
+  my $result = $stallion->parse_and_evaluate($given_string,
+    # usually omit the following
+   {max_steps => 30000, #default from parser
+    parse_info => $parse_info_hash, #if provided, parse info returned
+    trace => $parse_trace # if provided, trace returned
+   });
+  # returns undef if unable to parse
 
-  my ($value, $parse_info) =
-   $stallion->parse_and_evaluate({parse_this => $s});
 
-Rule Definitions:
+Rule Definitions (may be abbreviated to first letter):
 
   AND('subrule_1', 'subrule_2', ..., EVALUATION(sub{...}))
 
@@ -1097,7 +1143,7 @@ If the evaluation is not done while parsing, on a successful parse,
 the tree is evaluated in bottom up, left to right order.
 
 The grammars recognized are context free and are similar to those expressed in
-Extended Backus-Naur Form.
+Extended Backus-Naur Form (EBNF).
 
 The object being parsed does not need to be a string.  Except for
 the section on non-strings, the documentation assumes strings are being parsed.
@@ -1121,8 +1167,7 @@ The following examples read in two unsigned integers and adds them.
      #0 + $_[0] converts the matched string into a number
    );
 
-   my $parser = new Parse::Stallion(
-   {rules_to_set_up_hash => \%basic_grammar});
+   my $parser = new Parse::Stallion(\%basic_grammar);
 
    my $result = $parser->parse_and_evaluate('7+4');
    #$result should contain 11
@@ -1139,16 +1184,16 @@ The following examples read in two unsigned integers and adds them.
    );
 
    my $parser_2 = new Parse::Stallion(
-   {rules_to_set_up_hash => \%grammar_2, start_rule => 'expression'});
+    \%grammar_2, {start_rule => 'expression'});
 
-   my $result_2 = $parser_2->parse_and_evaluate('8+5');
+   my $result_2 = $parser_2->parse_and_evaluate('8 + 5');
    #$result_2 should contain 13
 
 =head2 RULES
 
 There are 4 rule types: B<'LEAF'>, B<'AND'>, B<'OR'>, and B<'MULTIPLE'>.
 
-Parsing begins from the 'start_rule', if the 'start_rule' parameter
+Parsing begins from the start rule, if the 'start_rule' parameter
 is omitted, the rule which is not a subrule is used as the start rule.
 The start rule can be of any type, though if the start rule is a B<'LEAF'>,
 the grammar is essentially just a regular expression.
@@ -1291,8 +1336,8 @@ the parsed expression and parsing the subrule specified by the value.
 
 =head3 RULE NAMES
 
-Avoid naming rules with the 'separator' substring '__XZ__', to avoid
-confliciting with internally generated rule names.  One can change this by
+Rule names cannot contain the 'separator' substring '__XZ__', to avoid
+confliciting with internally generated rule names.  This can be changed by
 using the 'separator' parameter.
 
 =head3 ENSURING RULES FORM COMPLETE GRAMMAR
@@ -1309,19 +1354,23 @@ returned value of the root node's evaluation routine.
 
 =head3 RETURNED VALUES
 
-If parse_and_evaluate is called in wantarray context a two value array is
-returned.  The first value is the result of the evaluation,
-same as if in scalar.  The second value is information on the parse.
+To get details on the parsing from parse_and_evaluate, a parameter
+parse_info should be passed an empty hash that will be filled in.
+Unless an evaluation can return an 'undef' value, not true in the
+examples provided, one can check if
+the returned value is 'undef' to determine if an evaluation failed.
 
-  my ($value, $parse_info) =
-   $stallion->parse_and_evaluate($given_string);
+  my $parse_info = {};
+  my $parse_trace = [];
+  my $value =
+   $stallion->parse_and_evaluate($given_string, {parse_info=>$parse_info,
+    parse_trace => $parse_trace});
 
   $parse_info->{parse_succeeded}; # is 1 if the string parses, else 0.
   $parse_info->{number_of_steps}; # number of steps parsing took
   $parse_info->{start_rule};
 
-  $parse_info->{parse_trace};
-  # reference to array of hashes showing each step, the hash keys are
+  # $parse_trace is array ref of hashes showing each step, the hash keys are
   #  1) rule_name
   #  2) moving_forward (value 0 if backtracking),
   #  3) moving_down (value 0 if moving up parse tree)
@@ -1329,6 +1378,7 @@ same as if in scalar.  The second value is information on the parse.
   #  5) node_creation_step, uniquely identifies node in parse tree
   #  6) parent_node_creation_step, parent in parse tree
   #  7) informative message of most recent parse step
+  #  8) nodes of the current parse tree
 
   $parse_info->{tree}; # the parse tree if the string parses.
 
@@ -1344,14 +1394,15 @@ Parse::Stallion::EBNF shows the grammar with these generated subrules.
 =head3 NUMBER OF PARSE STEPS
 
 If the parsing reaches the maximum number of steps without completing a
-parse tree, the parse fails.  Each step is listed in the parse_trace.
+parse tree, the parse fails (croak).  Each step is listed in the parse_trace.
 
 A step is an action on a node, roughly speaking matching a
 regex for a B<'leaf'> node, or moving forward or backtracking from a node.
 
-The maximum number of steps can be changed, default 20,000:
+The maximum number of steps can be changed, default 100,000.  If max_steps
+is set to a negative number, then there is no limit on the number of steps.
 
-  $stallion->parse_and_evaluate({max_steps=>100000, parse_this=>$string});
+  $stallion->parse_and_evaluate($string, {max_steps=>200000});
 
 =head3 "LEFT RECURSION"
 
@@ -1389,35 +1440,56 @@ Evaluation can occur during or after parsing.
 Each rule may have an evaluation subroutine tied to it, if when defining
 a rule there is no subroutine, a default "do nothing" subroutine is provided.
 Subrules may have a subroutine tied to them though by default they have none.
-When setting up a rule, one can specify the subroutine
-by enclosing the subroutine in the parameter 'EVALUATION' or 'E'.
+
+When setting up a rule, one can specify the EVALUATION subroutine
+by the parameter 'EVALUATION' or 'E'.
+If the parameter is given a subroutine, that is used.
+If the parameter is given a regexp, that is applied to the matched string
+of the text and the first parenthized match is returned as the value.
+Otherise the parameter within the EVALUATION is returned.
+
 
 Each node has a computed value that is the result of calling its
 evaluation routine.  The returned value of the parse is the
 computed value of the root node.
 
-There are two parameters to an evaluation routine. the second is the object
-being parsed, which could be undef if evaluation occurs after parsing.
+There are three parameters to an evaluation routine. The first
+is dependent on how the rule is defined, see below.  The second and
+third parameters are the string being parsed and the current value, the
+position within the string the parse is at.
+If evaluation occurs after parsing, these may be not set.
 
-The first parameter is either the string matched by the nodes' descendants
-or a hash.
+The first parameter to the evaluation routine is either the string matched
+by the nodes' descendants, or a hash, or if the node is a leaf that has
+a parenthesized match inside, what is matched by the (first) parenthesized
+match.
 The hash keys are the named subrules of the node's rule, the values are the
 computed value of the corresponding child node.  If a key could repeat,
 the value is an array reference.
 
-For B<'leaf'> nodes, the parameter is the string matched and cannot
-be a hash, there are no children.  For non-B<'leaf'>
+For B<'leaf'> nodes, the parameter is the string matched or the
+1st parenthized match in the regexp of the leaf.  For non-B<'leaf'>
 nodes by default the parameter is the hash, this can be changed by
 passing in 'USE_PARSE_MATCH()' when creating the rule.
 
-The beginning and trailing white space can be removed before being passed
-to a B<'leaf'> or USE_PARSE_MATCH node's routine by setting the parameter
-remove_white_space when creating the parser:
-
-  $parser = new Parse::Stallion({remove_white_space => 1});
-
 By nesting a rule with an alias, the alias is used for the name of the
 hash parameter instead of the rule name.
+
+Examples:
+
+   LEAF( qr/\w+/, E(sub {...})) # subroutine is called with word
+
+   L( qr/(d)\w+/, E(sub {...})) # subroutine is called with 'd'
+
+   L( qr/\s*\w+\s*/, E(qr/\s*(\w+)\s*/) # white space trimmed
+
+   L( qr/\s*(\w+)\s*/) # white space trimmed
+
+   qr/\s*(\w+)\s*/ # white space trimmed
+
+   L( qr/\s*\w+\s*/, E('x')) # evaluates to value x
+
+   L( qr/\s*\w+\s*/, E(['x','ss','t'])) # evaluates to array reference
 
 =head3 EVALUATION AFTER PARSING
 
@@ -1512,9 +1584,9 @@ true.  If the second statement is true, the string parses.
    ),
   );
   
-  my $how_many_parser = new Parse::Stallion({
-    do_evaluation_in_parsing => 1,
-    rules_to_set_up_hash => \%parsing_rules,
+  my $how_many_parser = new Parse::Stallion(
+   \%parsing_rules,
+   {do_evaluation_in_parsing => 1,
     start_rule => 'start_expression',
   });
   
@@ -1588,11 +1660,10 @@ Example:
    number => qr/\s*\d*\s*/
   );                               
                       
-  my $no_eval_parser = new Parse::Stallion({do_not_compress_eval => 0,
-   rules_to_set_up_hash => \%no_eval_rules,
-   });
+  my $no_eval_parser = new Parse::Stallion(\%no_eval_rules,
+   {do_not_compress_eval => 0});
 
-  $result = $no_eval_parser->parse_and_evaluate({parse_this=>"7+4*8"});
+  $result = $no_eval_parser->parse_and_evaluate("7+4*8");
    
   #$result contains:
   { 'plus' => [ '+' ],
@@ -1601,11 +1672,10 @@ Example:
                   'right' => [ '8' ],
                   'times' => [ '*' ] } ] }
 
-  my $dnce_no_eval_parser = new Parse::Stallion({do_not_compress_eval => 1,
-   rules_to_set_up_hash => \%no_eval_rules,
-   });
+  my $dnce_no_eval_parser = new Parse::Stallion(\%no_eval_rules,
+   {do_not_compress_eval => 1});
 
-  $result = $dnce_no_eval_parser->parse_and_evaluate({parse_this=>"7+4*8"});
+  $result = $dnce_no_eval_parser->parse_and_evaluate("7+4*8");
 
   #$result contains:
   { 'plus' => [ '+' ],
@@ -1668,13 +1738,12 @@ as an array, if the value is 0, it would be passed as a scalar.
       qr/\s*[+\-]?(\d+(\.\d*)?|\.\d+)\s*/,
       E(sub{ return 0 + $_[0]; })
     ),
-    plus_or_minus => qr/\s*[\-+]\s*/,
-    times_or_divide => qr/\s*[*\/]\s*/
+    plus_or_minus => qr/\s*([\-+])\s*/,
+    times_or_divide => qr/\s*([*\/])\s*/
    );
 
-   $calculator_parser = new Parse::Stallion({
-     rules_to_set_up_hash => \%calculator_rules,
-     start_rule => 'start_expression'
+   $calculator_parser = new Parse::Stallion(\%calculator_rules,
+     {start_rule => 'start_expression'
    });
 
    my $result = $calculator_parser->parse_and_evaluate("3+7*4");
@@ -1870,11 +1939,12 @@ Please send in suggestions.
 
 =head1 SEE ALSO
 
-example directory
+example directory (includes stallion.html, a javascript translation of
+ Parse::Stallion)
 
 Parsing texts, including references to Extended Backus-Naur Form notation.
 
-Parse::Stallion::CSV, Parse::Stallion::CSVFH, Parse::Stallion::EBNF.
+Parse::Stallion::CSV, Parse::Stallion::EBNF.
 
 Perl 6 grammars.
 

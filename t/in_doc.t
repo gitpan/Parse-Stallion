@@ -16,8 +16,7 @@ use Test::More tests => 2;
      #0 + $_[0] converts the matched string into a number
    );
 
-   my $parser = new Parse::Stallion(
-   {rules_to_set_up_hash => \%basic_grammar});
+   my $parser = new Parse::Stallion(\%basic_grammar);
 
    my $result = $parser->parse_and_evaluate('7+4');
    #$result should contain 11
@@ -35,7 +34,7 @@ use Test::More tests => 2;
    );
 
    my $parser_2 = new Parse::Stallion(
-   {rules_to_set_up_hash => \%grammar_2, start_rule => 'expression'});
+   \%grammar_2, {start_rule => 'expression'});
 
    my $result_2 = $parser_2->parse_and_evaluate('8+5');
    #$result_2 should contain 13

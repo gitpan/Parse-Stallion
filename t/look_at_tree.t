@@ -61,34 +61,37 @@ my %calculator_rules = (
    E(sub{ return 0 + $_[0]; })
  ),
  plus_or_minus => L(
-   qr/\s*[\-+]\s*/
+   qr/\s*[\-+]\s*/, E(qr/\s*([\-+])\s*/),
  ),
  times_or_divide => L(
-   qr/\s*[*\/]\s*/
+   qr/\s*[*\/]\s*/, E(qr/\s*([*\/])\s*/),
  ),
 );
 
-my $calculator_parser = new Parse::Stallion({remove_white_space => 1,
-  rules_to_set_up_hash => \%calculator_rules,
-  start_rule => 'start_expression',});
+my $calculator_parser = new Parse::Stallion(
+  \%calculator_rules,
+  { start_rule => 'start_expression'});
 
-my ($x,$result) =
- $calculator_parser->parse_and_evaluate({parse_this=>"7+4"});
+my $result = {};
+my $x =
+ $calculator_parser->parse_and_evaluate("7+4", {parse_info=>$result});
 #my $parsed_tree = $result->{tree};
 #print STDERR "pt is ".Dumper($parsed_tree)."\n";
 #$result = $calculator_parser->do_tree_evaluation({tree=>$parsed_tree});
 #print "Result is $result\n";
 is ($x, 11, "simple plus");
 
-($x,$result) =
- $calculator_parser->parse_and_evaluate({parse_this=>"7*4"});
+$result = {};
+$x =
+ $calculator_parser->parse_and_evaluate("7*4", {parse_info=>$result});
 #$parsed_tree = $result->{tree};
 #$result = $calculator_parser->do_tree_evaluation({tree=>$parsed_tree});
 #print "Result is $result\n";
 is ($x, 28, "simple multiply");
 
-($x, $result) =
- $calculator_parser->parse_and_evaluate({parse_this=>"3+7*4" });
+$result = {};
+$x =
+ $calculator_parser->parse_and_evaluate("3+7*4", {parse_info=>$result});
 my $parsed_tree = $result->{tree};
 #$result = $calculator_parser->do_tree_evaluation({tree=>$parsed_tree});
 #print "Result is $result\n";
@@ -175,11 +178,11 @@ is($parsed_tree->stringify({values=>['name','parse_match']}), $pq,
    number => qr/\s*\d*\s*/,
   );
 
-  my $no_eval_parser = new Parse::Stallion({do_not_compress_eval => 0,
-   rules_to_set_up_hash => \%no_eval_rules,
-   });
+  my $no_eval_parser = new Parse::Stallion(
+   \%no_eval_rules,
+   {do_not_compress_eval => 0 });
 
-  $result = $no_eval_parser->parse_and_evaluate({parse_this=>"7+4*8"});
+  $result = $no_eval_parser->parse_and_evaluate("7+4*8");
 
   is_deeply($result,{                                  
           'plus' => [
@@ -200,11 +203,12 @@ is($parsed_tree->stringify({values=>['name','parse_match']}), $pq,
         },'no eval do not compress 0');
 
   my $dnce_no_eval_parser =
-   new Parse::Stallion({do_not_compress_eval => 1,
-   rules_to_set_up_hash => \%no_eval_rules,
+   new Parse::Stallion(
+   \%no_eval_rules,
+   {do_not_compress_eval => 1
    });
 
-  $result = $dnce_no_eval_parser->parse_and_evaluate({parse_this=>"7+4*8"});
+  $result = $dnce_no_eval_parser->parse_and_evaluate("7+4*8");
 
   is_deeply($result, {
           'plus' => [

@@ -12,7 +12,7 @@ jff,slk,lwer
 lkwer,fsjk,sdf
 EOL
 
-$result = $csv_stallion->parse_and_evaluate({parse_this=>$file});
+$result = $csv_stallion->parse_and_evaluate($file);
 
 is_deeply($result,
 {
@@ -39,7 +39,7 @@ jff,"slk,lwer,sd
 sdfkl,sdf,sdf,sdf",ke
 lkwer,fsjk,sdf
 EOL
-$result = $csv_stallion->parse_and_evaluate({parse_this=>$file});
+$result = $csv_stallion->parse_and_evaluate($file);
 
 is_deeply (
 $result,

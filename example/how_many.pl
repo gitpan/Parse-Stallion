@@ -49,24 +49,24 @@ my %parsing_rules = (
  )
 );
 
-my $how_many_parser = new Parse::Stallion({
-  do_evaluation_in_parsing => 1,
-  rules_to_set_up_hash => \%parsing_rules,
-  start_rule => 'start_expression',
+my $how_many_parser = new Parse::Stallion(
+  \%parsing_rules,
+  { do_evaluation_in_parsing => 1,
+   start_rule => 'start_expression',
 });
 
-$result = $how_many_parser->parse_and_evaluate({
-  parse_this=>"there are 5 elements in 5,4,3,2,1. that is the truth."});
+$result = $how_many_parser->parse_and_evaluate(
+  "there are 5 elements in 5,4,3,2,1. that is the truth.");
 
 print "$result should be 1\n";
 
-$result = $how_many_parser->parse_and_evaluate({
-  parse_this=>"there are 5 elements in 5,4,3,1. that is not the truth."});
+$result = $how_many_parser->parse_and_evaluate(
+  "there are 5 elements in 5,4,3,1. that is not the truth.");
 
 print "$result should be 1\n";
 
-$result = $how_many_parser->parse_and_evaluate({
-  parse_this=>"there are 5 elements in 5,4,3,1. that is the truth."});
+$result = $how_many_parser->parse_and_evaluate(
+  "there are 5 elements in 5,4,3,1. that is the truth.");
 
 print "$result should be undef\n";
 

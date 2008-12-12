@@ -59,44 +59,45 @@ my %parsing_rules = (
  ),
 );
 
-my $how_many_parser = new Parse::Stallion({
+my $how_many_parser = new Parse::Stallion(
+  \%parsing_rules,
+  {
   do_evaluation_in_parsing => 1,
-  rules_to_set_up_hash => \%parsing_rules,
   start_rule => 'start_expression',
 });
 
 my $result;
 
-$result = $how_many_parser->parse_and_evaluate({
-  parse_this=>"there are 5 elements in 5,4,3,2,1. that is the truth."});
+$result = $how_many_parser->parse_and_evaluate(
+  "there are 5 elements in 5,4,3,2,1. that is the truth.");
 
 #print STDERR "result is $result\n";
 
 is ($result, 1, 'true statement');
 
-$result = $how_many_parser->parse_and_evaluate({
-  parse_this=>"there are 4 elements in 5,4,3,1. that is the truth."});
+$result = $how_many_parser->parse_and_evaluate(
+  "there are 4 elements in 5,4,3,1. that is the truth.");
 
 #print STDERR "result is $result\n";
 
 is ($result, 1, 'another true statement');
 
-$result = $how_many_parser->parse_and_evaluate({
-  parse_this=>"there are 5 elements in 5,4,3,1. that is not the truth."});
+$result = $how_many_parser->parse_and_evaluate(
+  "there are 5 elements in 5,4,3,1. that is not the truth.");
 
 #print STDERR "result is $result\n";
 
 is ($result, 1, 'true but trickier statement');
 
-$result = $how_many_parser->parse_and_evaluate({
-  parse_this=>"there are 5 elements in 5,4,3,1. that is the truth."});
+$result = $how_many_parser->parse_and_evaluate(
+  "there are 5 elements in 5,4,3,1. that is the truth.");
 
 #print STDERR "result is $result\n";
 
 is ($result, undef, 'not true statement');
 
-$result = $how_many_parser->parse_and_evaluate({
-  parse_this=>"there are 4 elements in 5,4,3,1. that is not the truth."});
+$result = $how_many_parser->parse_and_evaluate(
+  "there are 4 elements in 5,4,3,1. that is not the truth.");
 
 #print STDERR "result is $result\n";
 

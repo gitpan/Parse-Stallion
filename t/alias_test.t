@@ -17,12 +17,12 @@ my %basic_plus_grammar = (
  )
 );
 
-my $basic_plus_parser = new Parse::Stallion({
-  rules_to_set_up_hash => \%basic_plus_grammar,
-  start_rule => 'start_expression',});
+my $basic_plus_parser = new Parse::Stallion(
+  \%basic_plus_grammar,
+  {start_rule => 'start_expression'});
 
 my $result =
- $basic_plus_parser->parse_and_evaluate({parse_this=>"7+4"});
+ $basic_plus_parser->parse_and_evaluate("7+4");
 print "Result is $result\n";
 is ($result, 11, "simple plus");
 

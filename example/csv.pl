@@ -12,7 +12,7 @@ sdfkl,sdf,sdf,sdf",ke
 lkwer,fsjk,sdf
 EOL
 
-$result = $csv_stallion->parse_and_evaluate({parse_this=>$file});
+$result = $csv_stallion->parse_and_evaluate($file);
 
 print "header in ".join("..",@{$result->{header}})."\n\n";
 foreach my $i (0..$#{$result->{records}}) {

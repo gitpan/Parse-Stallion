@@ -60,15 +60,18 @@ return $_[0]->{expression}})),
 
 my $calculator_parser = new Parse::Stallion(\%calculator_rules);
 
-my $result = $calculator_parser->parse_and_evaluate("7+4");
+my $result;
+my $info;
+($result, $info) = $calculator_parser->parse_and_evaluate("7+4");
 is ($result, 11, "simple plus");
+#use Data::Dumper; print STDERR Dumper($info)."\n";
 
 $result =
- $calculator_parser->parse_and_evaluate({parse_this=>"7*4"});
+ $calculator_parser->parse_and_evaluate("7*4");
 is ($result, 28, "simple multiply");
 
 $result =
- $calculator_parser->parse_and_evaluate({parse_this=>"3+7*4"});
+ $calculator_parser->parse_and_evaluate("3+7*4");
 #print "Result is $result\n";
 is ($result, 31, "simple plus and multiply");
 
@@ -138,9 +141,8 @@ return $_[0]->{expression}}),U()),
  ),
 );
 
-my $c_calculator_parser = new Parse::Stallion({
- rules_to_set_up_hash => \%calculator_rules,
- do_evaluation_in_parsing => 1,
+my $c_calculator_parser = new Parse::Stallion(\%calculator_rules,
+ {do_evaluation_in_parsing => 1
 });
 
 my $n_calculator_parser = new Parse::Stallion(\%n_calculator_rules);

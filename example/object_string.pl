@@ -130,14 +130,14 @@ divided_by => LEAF({
 
 my $pf_count = 0;
 my $pb_count = 0;
-my $iv_count = 0;
-my $calculator_stallion = new Parse::Stallion({
-  rules_to_set_up_hash => \%calculator_rules,
-  start_rule => 'start_expression',
+my $calculator_stallion = new Parse::Stallion(
+  \%calculator_rules,
+  {start_rule => 'start_expression',
   parse_forward =>
    sub {
     my $input_string_ref = shift;
     my $rule_definition = shift;
+    my $current_value = shift;
     $pf_count=1;
     my $match_rule = $rule_definition->{nsl_regex_match} ||
      $rule_definition->{leaf} ||
@@ -159,6 +159,7 @@ my $calculator_stallion = new Parse::Stallion({
    sub {
     my $input_string_ref = shift;
     my $rule_definition = shift;
+    my $current_value = shift;
     my $stored_value = shift;
     $pb_count=1;
     if (defined $stored_value) {
@@ -167,28 +168,28 @@ my $calculator_stallion = new Parse::Stallion({
    },
   increasing_value_function => sub {
     my $string = shift;
-    $iv_count=1;
     return 0 - length($string);
   }
 });
 
 
 my $result =
- $calculator_stallion->parse_and_evaluate({parse_this=>"7+4"});
+ $calculator_stallion->parse_and_evaluate("7+4");
 print "Result is $result should be 11\n";
 
 $result =
- $calculator_stallion->parse_and_evaluate({parse_this=>"7*4"});
+ $calculator_stallion->parse_and_evaluate("7*4");
 print "Result is $result should be 28\n";
 
 $result =
- $calculator_stallion->parse_and_evaluate({parse_this=>"3+7*4"});
+ $calculator_stallion->parse_and_evaluate("3+7*4");
 print "Result is $result should be 31\n";
 
+$result = {};
 my $x;
-($x, $result) =
- eval {
- $calculator_stallion->parse_and_evaluate({parse_this=>"3+-+7*4"})};
+$x = 
+ $calculator_stallion->parse_and_evaluate("3+-+7*4", {parse_info=>$result,
+  trace => 1});
 
 print "Result is $x should be undef\n";
 print "Parse succeded is ".$result->{parse_succeeded}." should be 0\n";

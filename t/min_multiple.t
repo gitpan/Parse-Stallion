@@ -32,32 +32,32 @@ my %parsing_rules_without_min_first = (
  )
 );
 
-my $with_min_parser = new Parse::Stallion({
-  rules_to_set_up_hash => \%parsing_rules_with_min_first,
-  start_rule => 'start_expression',
+my $with_min_parser = new Parse::Stallion(
+  \%parsing_rules_with_min_first,
+  { start_rule => 'start_expression',
 });
 
-my $without_min_parser = new Parse::Stallion({
-  rules_to_set_up_hash => \%parsing_rules_without_min_first,
-  start_rule => 'start_expression',
+my $without_min_parser = new Parse::Stallion(
+  \%parsing_rules_without_min_first,
+  { start_rule => 'start_expression',
 });
 
 #my $result;
 
-my ($result, $other) = $with_min_parser->parse_and_evaluate({parse_this=>"qxxx"});
+my ($result, $other) = $with_min_parser->parse_and_evaluate("qxxx");
 
 #use Data::Dumper;print STDERR "parse trace is ".Dumper($other->{parse_trace})."\n";
 is ($result,'q', 'min parser');
 
-$result = $without_min_parser->parse_and_evaluate({parse_this=>"qxxx"});
+$result = $without_min_parser->parse_and_evaluate("qxxx");
 
 is ($result,'qxxx', 'without min parser');
 
-$result = $with_min_parser->parse_and_evaluate({parse_this=>"xxx"});
+$result = $with_min_parser->parse_and_evaluate("xxx");
 
 is ($result,'', 'no q min parser');
 
-$result = $without_min_parser->parse_and_evaluate({parse_this=>"xxx"});
+$result = $without_min_parser->parse_and_evaluate("xxx");
 
 is ($result,'xxx', 'no q without min parser');
 

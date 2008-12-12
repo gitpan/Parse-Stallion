@@ -77,24 +77,22 @@ number => L(
   })
  )
 ,
-left_parenthesis => qr/\s*\(\s*/,
-right_parenthesis => qr/\s*\)\s*/,
-power_of => qr/\s*\*\*\s*/,
+left_parenthesis => qr/\s*(\()\s*/,
+right_parenthesis => qr/\s*(\))\s*/,
+power_of => qr/\s*(\*\*)\s*/,
 plus_or_minus =>
   O('plus', 'minus'),
-plus => qr/\s*\+\s*/,
-minus => qr/\s*\-\s*/,
+plus => qr/\s*(\+)\s*/,
+minus => qr/\s*(\-)\s*/,
 times_or_divide_or_modulo =>
   O('times', 'divided_by', 'modulo')
 ,
-modulo => qr/\s*\%\s*/,
-times => qr/\s*\*\s*/,
-divided_by => qr/\s*\/\s*/
+modulo => qr/\s*(\%)\s*/,
+times => qr/\s*(\*)\s*/,
+divided_by => qr/\s*(\/)\s*/
 );
 
-my $calculator_parser = new Parse::Stallion({
-  start_rule => 'start_expression',
-  rules_to_set_up_hash => \%calculator_rules});
+my $calculator_parser = new Parse::Stallion(\%calculator_rules);
 $calculator_parser->generate_evaluate_subroutines;
 
 my $result = $calculator_parser->parse_and_evaluate("7+4");
@@ -106,7 +104,7 @@ print "should be 28, Result is $result\n";
 $result = $calculator_parser->parse_and_evaluate("3+7*4");
 print "should be 31, result is $result\n";
 
-($result, $parse_info) = $calculator_parser->parse_and_evaluate("3+-+7*4");
+$result = $calculator_parser->parse_and_evaluate("3+-+7*4",{parse_info=>$parse_info = {}});
 
 print "should be 0, Parse succeeded: ".$parse_info->{parse_succeeded}."\n";
 

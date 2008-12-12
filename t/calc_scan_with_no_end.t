@@ -127,12 +127,12 @@ constant => L(
  ))
 );
 
-my $calculator_scan_parser = new Parse::Stallion({
-  rules_to_set_up_hash => \%calculator_scan_rules,
-  start_rule => 'start_expression'});
+my $calculator_scan_parser = new Parse::Stallion(
+  \%calculator_scan_rules,
+  {start_rule => 'start_expression'});
 
 my $result =
- $calculator_scan_parser->parse_and_evaluate({parse_this=>"7+4"});
+ $calculator_scan_parser->parse_and_evaluate("7+4");
 
 is_deeply (\@results_array, 
  [                        
@@ -153,7 +153,7 @@ is_deeply (\@results_array,
 
 @results_array = ();
 $result =
- $calculator_scan_parser->parse_and_evaluate({parse_this=>"8*7+4+ (43 )"});
+ $calculator_scan_parser->parse_and_evaluate("8*7+4+ (43 )");
 
 is_deeply (\@results_array, 
  [                        

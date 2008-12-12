@@ -132,9 +132,9 @@ divided_by => L({
 my $pf_count = 0;
 my $pb_count = 0;
 my $iv_count = 0;
-my $calculator_stallion = new Parse::Stallion({
-  rules_to_set_up_hash => \%calculator_rules,
-  start_rule => 'start_expression',
+my $calculator_stallion = new Parse::Stallion(
+  \%calculator_rules,
+  {start_rule => 'start_expression',
   parse_forward =>
    sub {
     my $input_string_ref = shift;
@@ -180,24 +180,23 @@ my $calculator_stallion = new Parse::Stallion({
 
 
 my $result =
- $calculator_stallion->parse_and_evaluate({parse_this=>"7+4"});
+ $calculator_stallion->parse_and_evaluate("7+4");
 print "Result is $result\n";
 is ($result, 11, "simple plus");
 
 $result =
- $calculator_stallion->parse_and_evaluate({parse_this=>"7*4"});
+ $calculator_stallion->parse_and_evaluate("7*4");
 print "Result is $result\n";
 is ($result, 28, "simple multiply");
 
 $result =
- $calculator_stallion->parse_and_evaluate({parse_this=>"3+7*4"});
+ $calculator_stallion->parse_and_evaluate("3+7*4");
 print "Result is $result\n";
 is ($result, 31, "simple plus and multiply");
 
+$result = {};
 my $x;
-($x, $result) =
- eval {
- $calculator_stallion->parse_and_evaluate({parse_this=>"3+-+7*4"})};
+$x = eval {$calculator_stallion->parse_and_evaluate("3+-+7*4", {parse_info=>$result})};
 
 is($result->{parse_succeeded},0,"bad parse on parse and evaluate");
 

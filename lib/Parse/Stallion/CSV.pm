@@ -89,8 +89,8 @@ my %with_header_csv_rules = (
 sub new {
   my $self = shift;
   my $parameters = shift;
-  return  new Parse::Stallion({
-    rules_to_set_up_hash=>\%with_header_csv_rules, start_rule=>'file'});
+  return  new Parse::Stallion(
+    \%with_header_csv_rules, {start_rule=>'file'});
 }
 
 

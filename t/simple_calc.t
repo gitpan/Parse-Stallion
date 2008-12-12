@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #Copyright 2007-8 Arthur S Goldstein
-use Test::More tests => 8;
+use Test::More tests => 9;
 BEGIN { use_ok('Parse::Stallion') };
 
 my %calculator_rules = (
@@ -53,20 +53,21 @@ return $_[0]->{expression}}),
  times_or_divide => LEAF(qr/\s*[*\/]\s*/)
 );
 
-my $calculator_parser = new Parse::Stallion({
-  do_evaluation_in_parsing => 1,
-  rules_to_set_up_hash => \%calculator_rules,
+my $calculator_parser = new Parse::Stallion(
+  \%calculator_rules,
+  {
+  do_evaluation_in_parsing => 1
   });
 
 my $result =
- $calculator_parser->parse_and_evaluate({parse_this=>"7+4"});
+ $calculator_parser->parse_and_evaluate("7+4");
 #my $parsed_tree = $result->{tree};
 #$result = $calculator_parser->do_tree_evaluation({tree=>$parsed_tree});
 #print "Result is $result\n";
 is ($result, 11, "simple plus");
 
 $result =
- $calculator_parser->parse_and_evaluate({parse_this=>"7*4"});
+ $calculator_parser->parse_and_evaluate("7*4");
 #$parsed_tree = $result->{tree};
 #$result = $calculator_parser->do_tree_evaluation({tree=>$parsed_tree});
 #print "Result is $result\n";
@@ -89,22 +90,22 @@ $array_p = $calculator_parser->which_parameters_are_arrays({
 is_deeply({expression => 0},
  $array_p, 'Which parameters are arrays single values');
 
-my $short_calculator_parser = new Parse::Stallion({
-  do_evaluation_in_parsing => 1,
+my $short_calculator_parser = new Parse::Stallion(
+  \%calculator_rules,
+  {do_evaluation_in_parsing => 1,
 #  end_of_parse_allowed => sub {return 1},
-  rules_to_set_up_hash => \%calculator_rules,
   });
 
 #$result =
-# $short_calculator_parser->parse_and_evaluate({parse_this=>"7+4 x"});
+# $short_calculator_parser->parse_and_evaluate("7+4 x");
 #is ($result, 11, "simple plus x on short calculator");
 #
 #$result =
-# $calculator_parser->parse_and_evaluate({parse_this=>"7+4 x"});
+# $calculator_parser->parse_and_evaluate("7+4 x");
 #is ($result, undef, "simple plus x on calculator");
 #
 #my ($new_result, $details) =
-# $short_calculator_parser->parse_and_evaluate({parse_this=>"7+4 x"});
+# $short_calculator_parser->parse_and_evaluate("7+4 x");
 #is ($details->{unparsed}, 'x', "unparsed of simple plus x on short calculator");
 #
 #my $q = '7 + 4 x';
@@ -115,9 +116,12 @@ my $short_calculator_parser = new Parse::Stallion({
 #
 #$q = '7 + 4 x';
 #
-#$short_calculator_parser->parse_and_evaluate({parse_this=>\$q});
+#$short_calculator_parser->parse_and_evaluate(\$q);
 #
 #is ($q, 'x', "var in as hash unparsed of simple plus x on short calculator");
+
+$result = $calculator_parser->parse_and_evaluate('');
+is ($result, undef, "empty");
 
 use_ok('Parse::Stallion::EBNF');
 my $ebnf = ebnf Parse::Stallion::EBNF($short_calculator_parser);

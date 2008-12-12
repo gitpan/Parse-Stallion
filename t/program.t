@@ -186,14 +186,13 @@ equality => L(
  ),
 );
 
-my $program_parser = new Parse::Stallion({
- rules_to_set_up_hash=>\%program_rules, start_rule=>'program'});
+my $program_parser = new Parse::Stallion(
+ \%program_rules, {start_rule=>'program'});
 
 my $fin_result =
-  $program_parser->parse_and_evaluate({
-   parse_this => 'x=1; while (x < 7) {print x; x = x + 2;};',
-   trace=> 0
- });
+  $program_parser->parse_and_evaluate(
+   'x=1; while (x < 7) {print x; x = x + 2;};'
+ );
 
 print "Generated program\n";
 

@@ -25,9 +25,9 @@ my %middle_parsing_rules = (
 
 );
 
-my $middle_parser = new Parse::Stallion({
-  do_evaluation_in_parsing => 1,
-  rules_to_set_up_hash => \%middle_parsing_rules,
+my $middle_parser = new Parse::Stallion(
+  \%middle_parsing_rules,
+  { do_evaluation_in_parsing => 1,
   start_rule => 'start_expression',
 });
 
@@ -53,7 +53,7 @@ my %parsing_rules = (
   qr/\s+\w+\s+/,
   E(sub {
     my $middle = shift;
-    my $j = $middle_parser->parse_and_evaluate({parse_this=>$middle});
+    my $j = $middle_parser->parse_and_evaluate($middle);
     if ($j) {return $j};
     return (undef, 1);
   })
@@ -68,28 +68,31 @@ my %parsing_rules = (
  comma => L(qr/\,/)
 );
 
-my $pe_parser = new Parse::Stallion({
+my $pe_parser = new Parse::Stallion(
+  \%parsing_rules,
+  {
   do_evaluation_in_parsing => 1,
-  rules_to_set_up_hash => \%parsing_rules,
   start_rule => 'start_expression',
 });
 
 my $result;
 my $x;
 
-($x, $result) = $pe_parser->parse_and_evaluate({parse_this=>"abc middle def"});
+$result = {};
+$x = $pe_parser->parse_and_evaluate("abc middle def", {parse_info=>$result});
 
 is ($result->{parse_succeeded},1, 'simple middle parse');
 
 is ($x,'elddim', 'simple middle parse');
 
-($x, $result) = $pe_parser->parse_and_evaluate({parse_this=>"abc muddle def"});
+$x = $pe_parser->parse_and_evaluate("abc muddle def", {parse_info=>$result={}});
 
 is ($result->{parse_succeeded},1, 'simple middle parse');
 
 is ($x,'elddum', 'simple middle parse');
 
-($x, $result) = $pe_parser->parse_and_evaluate({parse_this=>"abc maddle def"});
+$result = {};
+$x = $pe_parser->parse_and_evaluate("abc maddle def", {parse_info=>$result});
 
 is ($result->{parse_succeeded},0, 'simple middle parse');
 
