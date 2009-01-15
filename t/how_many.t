@@ -1,6 +1,6 @@
 #!/usr/bin/perl
-#Copyright 2007-8 Arthur S Goldstein
-use Test::More tests => 6;
+#Copyright 2007-9 Arthur S Goldstein
+use Test::More tests => 8;
 BEGIN { use_ok('Parse::Stallion') };
 #use Data::Dumper;
 
@@ -100,3 +100,18 @@ $result = $how_many_parser->parse_and_evaluate(
 #print STDERR "result is $result\n";
 
 is ($result, undef, 'another not true statement');
+
+my %qrquote_leaf_rules = (
+ start_expression => qr/xx/
+);
+
+my $qrquote_parser = new Parse::Stallion(\%qrquote_leaf_rules);
+
+$result = $qrquote_parser->parse_and_evaluate('xx'
+#,{parse_trace => \@pt}
+);
+
+ok ($result, 'xx on xx qrparser');
+
+ok (!($qrquote_parser->parse_and_evaluate('x')), 'x on xx qrparser');
+

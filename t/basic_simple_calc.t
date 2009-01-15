@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-#Copyright 2007 Arthur S Goldstein
+#Copyright 2007-9 Arthur S Goldstein
 use Test::More tests => 12;
 BEGIN { use_ok('Parse::Stallion') };
 
@@ -75,14 +75,12 @@ $result =
 #print "Result is $result\n";
 is ($result, 31, "simple plus and multiply");
 
-my $array_p = $calculator_parser->which_parameters_are_arrays({
-  rule_name => 'term'});
+my $array_p = $calculator_parser->which_parameters_are_arrays('term');
 
 is_deeply({number => 1, times_or_divide => 1},
  $array_p, 'Which parameters are arrays arrays');
 
-$array_p = $calculator_parser->which_parameters_are_arrays({
-  rule_name => 'start_rule'});
+$array_p = $calculator_parser->which_parameters_are_arrays('start_rule');
 
 is_deeply({expression => 0},
  $array_p, 'Which parameters are arrays single values');

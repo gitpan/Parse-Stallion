@@ -3,6 +3,7 @@ Makefile.PL
 MANIFEST
 README
 example/calculator.pl
+example/calculator_ebnf.pl
 example/csv.pl
 example/date_parsing.pl
 example/how_many.pl
@@ -18,6 +19,7 @@ t/date_parsing.t
 t/date_with_no_end_string.t
 t/date_with_no_end_string_dpie.t
 t/dog_no_cat.t
+t/ebnf_in.t
 t/empty.t
 t/event.t
 t/how_many.t

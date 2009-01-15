@@ -151,7 +151,7 @@ my $calculator_stallion = new Parse::Stallion(
         }
       }
       $$input_string_ref = substr($$input_string_ref, length($matched));
-      return (1, $matched);
+      return (1, $matched, 0 - length($$input_string_ref));
     }
     return 0;
    },
@@ -166,29 +166,35 @@ my $calculator_stallion = new Parse::Stallion(
       $$input_string_ref = $stored_value.$$input_string_ref;
     }
    },
-  increasing_value_function => sub {
-    my $string = shift;
-    return 0 - length($string);
+  initial_value => sub {
+    my $string_ref = shift;
+    return 0 - length($$string_ref);
+  },
+  final_value => sub {
+    return 0;
   }
 });
 
 
+my $x = '7+4';
 my $result =
- $calculator_stallion->parse_and_evaluate("7+4");
+ $calculator_stallion->parse_and_evaluate($x);
 print "Result is $result should be 11\n";
 
+$x = '7*4';
 $result =
- $calculator_stallion->parse_and_evaluate("7*4");
+ $calculator_stallion->parse_and_evaluate($x);
 print "Result is $result should be 28\n";
 
+$x = '3+7*4';
 $result =
- $calculator_stallion->parse_and_evaluate("3+7*4");
+ $calculator_stallion->parse_and_evaluate($x);
 print "Result is $result should be 31\n";
 
 $result = {};
-my $x;
+my $y = '3+-+7*4';
 $x = 
- $calculator_stallion->parse_and_evaluate("3+-+7*4", {parse_info=>$result,
+ $calculator_stallion->parse_and_evaluate($y, {parse_info=>$result,
   trace => 1});
 
 print "Result is $x should be undef\n";

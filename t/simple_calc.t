@@ -77,15 +77,13 @@ $result =
  $calculator_parser->parse_and_evaluate("3+7*4");
 is ($result, 31, "simple plus and multiply");
 
-my $array_p = $calculator_parser->which_parameters_are_arrays({
-  rule_name => 'term'});
+my $array_p = $calculator_parser->which_parameters_are_arrays('term');
 
 #use Data::Dumper; print STDERR "ap is ".Dumper($array_p)."\n";
 is_deeply({number => 1, times_or_divide => 1},
  $array_p, 'Which parameters are arrays arrays');
 
-$array_p = $calculator_parser->which_parameters_are_arrays({
-  rule_name => 'start_rule'});
+$array_p = $calculator_parser->which_parameters_are_arrays('start_rule');
 
 is_deeply({expression => 0},
  $array_p, 'Which parameters are arrays single values');

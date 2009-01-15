@@ -1,5 +1,32 @@
 Revision history for Perl extension Parse::Stallion.
 
+0.60
+     Evaluation after parsing also gets entered value as argument.
+
+     EBNF parser set up.  Added STRING_EVALUATION to support this.
+
+     LOCATION subroutine created.
+
+     Added parse_hash as parameter to evaluation, unevaluation, parse_forward,
+     and parse_backtrack.
+
+     Removed increasing_value_function, now a returned value of parse_forward.
+
+     Added initial_value for non standard parses.
+
+     final_value added for parsing non strings.
+
+     fix to passed in separator to use index instead of regex search which
+     would fail on special characters
+
+     Fix for when only one rule in grammar.
+
+     If a multiple rule has maximum of 1 child (i.e. for an optional rule)
+     then the subrules within are not necessarily set to arrays when passed
+     as parameters to the evaluation routine.
+
+     Parameters to which_parameters_are_arrays changed.
+
 0.50
      EVAL can take more than just a function.
 
@@ -19,7 +46,7 @@ Revision history for Perl extension Parse::Stallion.
      Removed internal function calls to make faster.
 
      Ensured that default evaluation routines on empty string
-     will return empty string instead of a undefined value.
+     will return empty string instead of an undefined value.
 
 0.3
      Fix UNEVAL if given no subroutine

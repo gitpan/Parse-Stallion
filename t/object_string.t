@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-#Copyright 2007-8 Arthur S Goldstein
+#Copyright 2007-9 Arthur S Goldstein
 use Test::More tests => 5;
 BEGIN { use_ok('Parse::Stallion') };
 
@@ -85,6 +85,7 @@ number => L({
  },
 EVALUATION(
   sub{
+#print STDERR "number in is ".$_[0]."\n";
    return 0 + $_[0];
   })),
 left_parenthesis => L({
@@ -129,17 +130,14 @@ divided_by => L({
 ,
 );
 
-my $pf_count = 0;
-my $pb_count = 0;
-my $iv_count = 0;
 my $calculator_stallion = new Parse::Stallion(
   \%calculator_rules,
   {start_rule => 'start_expression',
   parse_forward =>
    sub {
     my $input_string_ref = shift;
+#print STDERR "looking at ".$$input_string_ref."\n";
     my $rule_definition = shift;
-    $pf_count=1;
     my $match_rule = $rule_definition->{nsl_regex_match} ||
      $rule_definition->{leaf} ||
      $rule_definition->{l};
@@ -152,7 +150,8 @@ my $calculator_stallion = new Parse::Stallion(
         }
       }
       $$input_string_ref = substr($$input_string_ref, length($matched));
-      return (1, $matched);
+#print STDERR "matched on $matched\n";
+      return (1, $matched, 0 - length($$input_string_ref));
     }
     return 0;
    },
@@ -162,15 +161,17 @@ my $calculator_stallion = new Parse::Stallion(
     my $rule_definition = shift;
     my $prev_value = shift;
     my $stored_value = shift;
-    $pb_count=1;
     if (defined $stored_value) {
       $$input_string_ref = $stored_value.$$input_string_ref;
     }
+#print STDERR "pb now have ".$$input_string_ref."\n";
    },
-  increasing_value_function => sub {
+  initial_value => sub {
     my $string = shift;
-    $iv_count=1;
-    return 0 - length($string);
+    return 0 - length($$string);
+  },
+  final_value => sub {
+    return 0;
   }
 });
 
@@ -179,24 +180,30 @@ my $calculator_stallion = new Parse::Stallion(
 #});
 
 
+my @parse_trace;
+my $string = '7+4';
 my $result =
- $calculator_stallion->parse_and_evaluate("7+4");
+ $calculator_stallion->parse_and_evaluate($string, {parse_trace => \@parse_trace});
 print "Result is $result\n";
+#use Data::Dumper;print STDERR "pt of 7 + 4 is ".Dumper(\@parse_trace)."\n";
 is ($result, 11, "simple plus");
 
+$string = '7*4';
 $result =
- $calculator_stallion->parse_and_evaluate("7*4");
+ $calculator_stallion->parse_and_evaluate($string);
 print "Result is $result\n";
 is ($result, 28, "simple multiply");
 
+$string = '3+7*4';
 $result =
- $calculator_stallion->parse_and_evaluate("3+7*4");
+ $calculator_stallion->parse_and_evaluate($string);
 print "Result is $result\n";
 is ($result, 31, "simple plus and multiply");
 
+$string = '3+-+7*4';
 $result = {};
 my $x;
-$x = eval {$calculator_stallion->parse_and_evaluate("3+-+7*4", {parse_info=>$result})};
+$x = eval {$calculator_stallion->parse_and_evaluate($string, {parse_info=>$result})};
 
 is($result->{parse_succeeded},0,"bad parse on parse and evaluate");
 

@@ -93,7 +93,7 @@ divided_by => qr/\s*(\/)\s*/
 );
 
 my $calculator_parser = new Parse::Stallion(\%calculator_rules);
-$calculator_parser->generate_evaluate_subroutines;
+#$calculator_parser->generate_evaluate_subroutines;
 
 my $result = $calculator_parser->parse_and_evaluate("7+4");
 print "should be 11, result is $result\n";

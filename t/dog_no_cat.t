@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-#Copyright 2008 Arthur S Goldstein
+#Copyright 2008-9 Arthur S Goldstein
 #tests a simple assertion
 use Test::More tests => 9;
 BEGIN { use_ok('Parse::Stallion') };
@@ -9,11 +9,11 @@ my %dog_rules = (
  bunch_of_chars => M(qr/./),
  dog => qr/dog/,
  no_cat => L(PF(
-   sub{my $string_ref = shift;
-     if ($$string_ref =~ /cat/) {
+   sub{my ($string, undef, $cv) = @_;
+     if ($string =~ /cat/) {
         return (0, undef);
      }
-     return 1;
+     return (1, '', $cv);
     }
    )),
 );
