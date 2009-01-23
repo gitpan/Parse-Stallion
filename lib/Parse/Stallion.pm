@@ -5,7 +5,7 @@ use Carp;
 use strict;
 use warnings;
 use 5.006;
-our $VERSION = '0.60';
+our $VERSION = '0.70';
 
 sub stringify {
   my $self = shift;
@@ -83,6 +83,7 @@ sub parse {
     steps => 0,
     alias => $first_alias,
     value_when_entered => $current_value,
+    node_hash => {},
     children => [],
     child_count => 0
   };
@@ -168,22 +169,27 @@ sub parse {
       }
       else { # !$moving_forward
         if ($current_rule->{leaf_rule}) {
-          $current_value = $current_node->{value_when_entered};
           if ($any_parse_backtrack && $current_rule->{parse_backtrack}) {
+            my $parent_node = $current_node->{parent};
             my $end_parse_now =
              &{$current_rule->{parse_backtrack}}
-             (\$object_being_parsed,
-              $current_rule->{leaf_info},
-              $current_value,
-              $current_node->{parse_match},
-              $parse_hash
-             );
+             ({parse_this_ref => \$object_being_parsed,
+              current_value => $current_value,
+              value_when_entered => $current_node->{value_when_entered},
+              parameters => $parent_node->{parameters},
+              parse_hash => $parse_hash,
+              node_hash => $parent_node->{node_hash},
+              node_parse_match => $parent_node->{parse_match},
+              match => $current_node->{parse_match},
+              leaf_rule_info => $new_rule->{leaf_rule_info},
+              });
             if ($end_parse_now) {
               $current_node = undef;
               $moving_forward = 0;
               last;
             }
           }
+          $current_value = $current_node->{value_when_entered};
           $remove_node = 1;
         }
         elsif ($current_rule->{or_rule}) {
@@ -246,21 +252,27 @@ sub parse {
         }
         elsif ($new_rule->{leaf_rule}) {
           my $previous_value = $current_value;
-          my ($able_to_modify, $match, $re_match);
+          my ($continue_forward, $match, $re_match);
           if ($any_parse_forward && $new_rule->{parse_forward}) {
-            ($able_to_modify, $match, $current_value) =
+            ($continue_forward, $match, $current_value) =
              &{$new_rule->{parse_forward}}
-             (\$object_being_parsed,
-              $new_rule->{leaf_info},
-              $current_value,
-              $parse_hash
-             );
-            if (!$able_to_modify) {
-              $current_value = $current_node->{value_when_entered}
+             ({parse_this_ref => \$object_being_parsed,
+              current_value => $current_value,
+              parameters => $current_node->{parameters},
+              parse_hash => $parse_hash,
+              node_hash => $current_node->{node_hash},
+              node_parse_match => $current_node->{parse_match},
+              leaf_rule_info => $new_rule->{leaf_rule_info},
+              });
+            if (!$continue_forward) {
+              $current_value = $previous_value;
             }
-            if ($current_node->{value_when_entered} > $current_value) {
-              croak ("Moving forward on $current_node_name"
-               ." resulted in backwards progress");
+            if (!defined $current_value) {
+              croak("Current_value not set, parse forward of $new_rule_name");
+            }
+            if ($previous_value > $current_value) {
+              croak ("Moving forward on $current_node_name resulted in 
+               backwards progress ($previous_value, $current_value)");
             }
           }
           else {
@@ -270,14 +282,14 @@ sub parse {
               $match = $1;
               $re_match = $2;
               if (!defined $match) {$match = ''};
-              $able_to_modify = 1;
+              $continue_forward = 1;
               $current_value = pos $object_being_parsed;
             }
             else {
-              $able_to_modify = 0;
+              $continue_forward = 0;
             }
           }
-          if (!$able_to_modify) {
+          if (!$continue_forward) {
             $moving_forward = 0;
             $moving_down = 0;
             $message .= 'Leaf not matched' if $parse_trace;
@@ -313,6 +325,7 @@ sub parse {
             steps => $steps,
             parent => $current_node,
             value_when_entered => $current_value,
+            node_hash => {},
             children => [],
             child_count => 0,
           };
@@ -476,7 +489,8 @@ sub parse_and_evaluate {
   my $parser = new Parse::Stallion::Parser($self);
   $parameters->{parse_info} = $parameters->{parse_info} || {};
   $parameters->{parse_hash} = {};
-  my $parser_results = $parser->parse($parameters);
+  my $parser_results = eval {$parser->parse($parameters)};
+  if ($@) {croak ($@)};
   my $to_return;
   if (!($parser_results->{parse_succeeded})) {
     $to_return = undef;
@@ -581,7 +595,7 @@ sub multiple {
   my @q;
   foreach my $parm (@_) {
     if ((ref $parm eq 'ARRAY') &&
-     ($parm->[0] eq 'EVAL' || $parm->[0] eq 'UNEVAL'
+     ($parm->[0] eq 'EVAL' || $parm->[0] eq 'UNEVAL' || $parm->[0] eq 'SEVAL'
       || $parm->[0] eq 'USE_PARSE_MATCH')) {
       push @q, $parm;
     }
@@ -598,6 +612,7 @@ sub multiple {
   elsif ($#p == 2) {
     return ['MULTIPLE', $_[1], $_[2], $_[0], @q];
   }
+use Data::Dumper; print STDERR Dumper(\@_);
   croak "Malformed MULTIPLE";
 }
 
@@ -673,6 +688,7 @@ sub add_rule {
   }
   my $default_alias = '';
   my @copy_of_rule; #to prevent changing input
+  my $rule_type = $self->{rule}->{$rule_name}->{rule_type} = $rule->[0];
   foreach my $sub_rule (@$rule) {
     if (ref $sub_rule eq 'ARRAY' && $sub_rule->[0] eq 'EVAL') {
       my $what_to_eval = $sub_rule->[1];
@@ -707,6 +723,9 @@ sub add_rule {
       $self->{do_evaluation_in_parsing} = 1;
     }
     elsif (ref $sub_rule eq 'ARRAY' && $sub_rule->[0] eq 'MATCH_MIN_FIRST') {
+      if ($rule_type ne 'MULTIPLE') {
+        croak ("Only multiple rules can have MATCH_MIN_FIRST");
+      }
       $self->{rule}->{$rule_name}->{minimize_children} = 1;
       $self->{any_minimize_children} = 1;
     }
@@ -714,40 +733,52 @@ sub add_rule {
       if ($self->{rule}->{$rule_name}->{leaf_display}) {
         croak ("Rule $rule_name has more than one leaf_display");
       }
+      if ($rule_type ne 'LEAF') {
+        croak ("Only leaf rules can have LEAF_DISPLAY");
+      }
       $self->{rule}->{$rule_name}->{leaf_display} = $sub_rule->[1];
     }
     elsif (ref $sub_rule eq 'ARRAY' && $sub_rule->[0] eq 'USE_PARSE_MATCH') {
       $self->{rule}->{$rule_name}->{use_parse_match} = 1;
     }
     elsif (ref $sub_rule eq 'ARRAY' && $sub_rule->[0] eq 'PARSE_FORWARD') {
-      if ($self->{rule}->{$rule_name}->{parse_forward}) {
-        croak ("Rule $rule_name has more than one parse_forward");
+      if ($rule_type eq 'LEAF') {
+        if ($self->{rule}->{$rule_name}->{parse_forward}) {
+          croak ("Rule $rule_name has more than one parse_forward");
+        }
+        $self->{rule}->{$rule_name}->{parse_forward} = $sub_rule->[1]
+         || croak ("Rule $rule_name Illegal parse_forward routine");
+        $self->{any_parse_forward} = 1;
       }
-      $self->{rule}->{$rule_name}->{parse_forward} = $sub_rule->[1]
-      || croak ("Rule $rule_name Illegal parse_forward routine");
-      $self->{any_parse_forward} = 1;
+      else {
+        croak ("Parse forward in rule $rule_name of $rule_type (not leaf)");
+      }
     }
     elsif (ref $sub_rule eq 'ARRAY' && $sub_rule->[0] eq 'PARSE_BACKTRACK') {
-      if ($self->{rule}->{$rule_name}->{parse_backtrack}) {
-        croak ("Rule $rule_name has more than one parse_backtrack");
+      if ($rule_type eq 'LEAF') {
+        if ($self->{rule}->{$rule_name}->{parse_backtrack}) {
+          croak ("Rule $rule_name has more than one parse_backtrack");
+        }
+        $self->{rule}->{$rule_name}->{parse_backtrack} = $sub_rule->[1]
+         || croak ("Rule $rule_name Illegal parse_backtrack routine");
+        $self->{any_parse_backtrack} = 1;
       }
-      $self->{rule}->{$rule_name}->{parse_backtrack} = $sub_rule->[1]
-      || croak ("Rule $rule_name Illegal parse_backtrack routine");
-      $self->{any_parse_backtrack} = 1;
+      else {
+        croak ("Parse backtrack in rule $rule_name of $rule_type (not leaf)");
+      }
     }
     else {
       push @copy_of_rule, $sub_rule;
     }
   }
-  my $rule_type = $self->{rule}->{$rule_name}->{rule_type} =
-   shift @copy_of_rule;
+  shift @copy_of_rule; #Remove rule type
   $self->{rule}->{$rule_name}->{leaf_rule} = 0;
   $self->{rule}->{$rule_name}->{or_rule} = 0;
   $self->{rule}->{$rule_name}->{and_rule} = 0;
   if ($rule_type eq 'LEAF') {
-    $self->{rule}->{$rule_name}->{leaf_info} = shift @copy_of_rule;
+    $self->{rule}->{$rule_name}->{leaf_rule_info} = shift @copy_of_rule;
       $self->{rule}->{$rule_name}->{regex_match} =
-       $self->{rule}->{$rule_name}->{leaf_info}->{regex_match};
+       $self->{rule}->{$rule_name}->{leaf_rule_info}->{regex_match};
     $self->{rule}->{$rule_name}->{parse_forward} =
      $self->{rule}->{$rule_name}->{parse_forward} ||
      $self->{leaf_parse_forward};
@@ -782,7 +813,7 @@ sub add_rule {
       if (ref $current_rule eq 'HASH') {
         my @hash_info = keys (%{$current_rule});
         if ($#hash_info != 0) {
-          croak ("Too many keys in rule of rule $rule_name");
+          croak ("Too many keys in rule $rule_name");
         }
         $alias = $hash_info[0];
         $current_rule = $current_rule->{$alias};
@@ -1060,8 +1091,13 @@ sub new_evaluate_tree_node {
 
     my $cv;
     if ($subroutine_to_run) {
-      @results = &$subroutine_to_run($params_to_eval, \$object,
-       $current_value, $parse_hash);
+      @results = &$subroutine_to_run($params_to_eval,
+       {parse_this_ref => \$object, current_value => $current_value,
+        parameters => $node->{parameters},
+        parse_hash => $parse_hash, node_hash => $node->{node_hash},
+        node_parse_match => $node->{parse_match}
+        }
+       );
       $cv = $results[0];
     }
     else {
@@ -1245,7 +1281,7 @@ The following examples read in two unsigned integers and adds them.
 
    use Parse::Stallion::EBNF; #see documenation on Parse::Stallion::EBNF
 
-   my $grammar_3 = 'start = left.number qr/\s*\+\s*/ right.number
+   my $grammar_3 = 'start = (left.number qr/\s*\+\s*/ right.number)
       S{return $_[0]->{left} + $_[0]->{right}}S;
      number = qr/\d+/;';
 
@@ -1519,27 +1555,32 @@ Each node has a computed value that is the result of calling its
 evaluation routine.  The returned value of the parse is the
 computed value of the root node.
 
-There are four parameters to an evaluation routine. The first
-parameter is described in the next paragraph.
-The second parameter is a reference to the string being parsed.
-The third parameter is the current value, the
-position within the string the parse is at.
-The fourth parameter is a hash created for each parse_and_evaluate that the
-evaluation, unevaluation, parse_forward, and parse_backtrack routines may use to
-store "global" variables.
+There are two parameters to a node's evaluation routine.
 
-The first parameter to the evaluation routine is either the string matched
-by the nodes' descendants, or a hash (see next sentence),
-or if the node is a leaf regexp that has a parenthesized match inside,
-what is matched by the first parenthesized match.
-If the first parameter is a hash, the hash's keys are the named subrules of
-the node's rule, the values are the computed value of the corresponding child
-node.  If a key could repeat, the value is an array reference.
+The first parameter to the evaluation routine is either a
+hash or a string:
 
-For B<'leaf'> nodes, the parameter is the string matched or the
-1st parenthized match in the regexp of the leaf.  For non-B<'leaf'>
-nodes by default the parameter is the hash, this can be changed by
-passing in 'USE_PARSE_MATCH()' when creating the rule.
+If the node is a leaf regexp that has a parenthesized match inside,
+what is matched by the first parenthesized match is the parameter.
+Else if the node is a leaf then what is matched by the leaf is
+the first parameter.
+Else if 'USE_PARSE_MATCH()' has been set for the node's rule, a join
+of all the matched strings of the nodes descendents is the parameter.
+
+For other internal nodes, the first parameter is a hash.
+The hash's keys are the named subrules of the node's rule, the values
+are the computed value of the corresponding child node.  If a key could
+repeat, the value is an array reference.
+
+The second parameter to an evaluation routine is a hash to
+several parameters.  These are:
+
+   parse_this_ref # The object being parsed
+   current_value # The current value if evaluation during parsing
+   parameters # Same as first parameter if hash
+   node_parse_match # Same as first parameter if USE_PARSE_MATCH
+   parse_hash # Writeable hash used for parse (can store global variables)
+   node_hash # Writeable hash used for node (combine with parse_forward)
 
 By nesting a rule with an alias, the alias is used for the name of the
 hash parameter instead of the rule name.
@@ -1559,6 +1600,14 @@ Examples:
    L( qr/\s*\w+\s*/, E('x')) # evaluates to value x
 
    L( qr/\s*\w+\s*/, E(['x','ss','t'])) # evaluates to array reference
+
+   A( qr/a/, qr/b/, E(sub {...})) #params: $_[0]->{''}->['a','b']
+
+   A( qr/a/, qr/b/, E(sub {...}),
+    USE_PARSE_MATCH()) #params: $_[0] eq 'ab'
+
+   A( {f=>qr/a/}, {f=>qr/b/},
+    E(sub {...})) #params: $_[0]->{'f'}->['a','b']
 
 A function, LOCATION is provided that takes a string reference and a position
 in the string and computes the line number and tab value of the given position.
@@ -1865,7 +1914,7 @@ else, $_ is the one unnamed rule or an array ref of the unnamed rules:
 
 =head2 LEAF DETAILS
 
-Leafs can be set up as follows:
+Leaf rules can be set up as follows:
 
   LEAF($leaf_arg, PARSE_FORWARD(sub{...}), PARSE_BACKTRACK(sub{...}),
    EVALUATION(sub{...}), UNEVALUATION(sub{...}), DISPLAY($display));
@@ -1873,31 +1922,52 @@ Leafs can be set up as follows:
 If $leaf_arg is a Regexp, it is converted into a hash ref:
 {regex_match => $leaf_arg} for internal purposes.
 
-If PARSE_FORWARD and PARSE_BACKTRACK are not provided, they use the
-default parse_forward and parse_backtrack subroutines.
+If a default PARSE_FORWARD is not provided then
+a regexp match is attempted on the string being parsed at the
+current_value's position.
+Default parse_forward and parse_backtrack subroutines can be provided
+for leaves.
 
 The subroutine in PARSE_FORWARD (or PF) is called when moving forwards
-during the parse.  It is given 4 arguments, a reference to the object
-being parsed, $leaf_arg, and the current value, and the parse_hash,
-a hash passed to all parse_forward, parse_backtrack, and evaluation shared
-within a given parsing.
+during the parse.  Its one parameter is a hash of:
+    parse_this_ref # The object being parsed
+    current_value # current value of parse
+    parameters # Same as to evaluation routine of leaf node's parent if
+               # evaluation in parsing and only known parameters
+    node_parse_match # Same as to evaluation routine of leaf node's parent
+               # if evaluation in parsing and only existing descendents
+    parse_hash # hash for storing global variables during given parse
+    node_hash # hash for storing variables of parent's node
+    leaf_rule_info # $leaf_arg's
+
+The regexp matching done if there is no PARSE_FORWARD routine is similar to:
+
 If the parsing should continue forward it should return an array with
 the first argument true (1), the second argument a "parse match" to store
 as what was matched, and the thrid argument the new current value.
 Else it should return 0.
 
 The subroutine in PARSE_BACKTRACK (or PB) is called when backtracking
-through a leaf.  It is given 5 arguments: a reference to the object
-being parsed, $leaf_arg (or {regex_match => $leaf_arg}), the
-current value, the "parse match" that was stored when moving forward,
-and the parse_hash.
+through a leaf.  Its one parameter is a hash of
+    parse_this_ref # The object being parsed
+    current_value # current value of parse
+    value_when_entered # value when leaf was created
+    match # value that was returned by parse_forward as match
+    parameters # Same as to evaluation routine of leaf node's parent if
+               # evaluation in parsing and only known parameters
+    node_parse_match # Same as to evaluation routine of leaf node's parent
+               # if evaluation in parsing and only existing descendents
+    parse_hash # hash for storing global variables during given parse
+    node_hash # hash for storing variables of parent's node
+    leaf_rule_info # $leaf_arg's
+
 It should return false.  If it returns true, then the parsing immediately
 ends in failure.  This can be used to set up a rule
 
   pass_this_no_backtrack => L(qr//,PB(sub{return 1}))
 
-that if encountered during parsing means that no backtracking will occur
-previous to this rule.
+that if encountered during parsing during a backtrack means that the parsing
+will end.
 
 The string $display is used in the related module Parse::Stallion::EBNF
 as to the string to show for the leaf rule.
@@ -1921,7 +1991,7 @@ string is matched instead of matching only a portion.
     ...
     parse_forward =>
      sub {
-       my ($object_ref, $parameters, $current_value, $parse_hash) = @_;
+       my $parameters = shift;
        ...
        return ($true_if_object_matches_rule,
         $value_to_store_in_leaf_node,
@@ -1929,9 +1999,9 @@ string is matched instead of matching only a portion.
      },
     parse_backtrack =>
      sub {
-       my ($object_ref, $rules, $current_value, $value_stored_in_leaf,
-        $parse_hash) = @_;
+       my $parameters = shift;
        ...
+       return; #else parsing halts
       },
     initial_value => sub {my ($object_ref, $parse_hash) = @_;
        ...
@@ -1954,9 +2024,8 @@ The script object_string.pl in the example directory shows how to use this.
 
 All B<'leaf'> rules need to be set up such that when the parser is moving
 forward and reaches a B<'leaf'>, the
-B<'leaf'> rule attempts to match the current input object.
-If there is a match, then the current_value may grow and should
-indicate where within the object the parser is working on.
+B<'leaf'> rule attempts to match the object being parsed at the current value.
+If there is a match, then the current_value may increase.
 
 When backtracking, the object being parsed should be reverted, if changed, to
 the state before being matched by the B<'leaf'> rule.
@@ -1988,8 +2057,9 @@ that found in the test case object_string.t:
     ...
     parse_forward =>
      sub {
-      my $input_string_ref = shift;
-      my $rule_definition = shift;
+      my $parameters = shift;
+      my $input_string_ref = $parameters->{parse_this_ref};
+      my $rule_definition = $parameters->{leaf_rule_info};
       my $m = $rule_definition->{regex_match};
       if ($$input_string_ref =~ s/\A($m)//) {
         return (1, $1, 0 - length($string));
@@ -1999,9 +2069,9 @@ that found in the test case object_string.t:
 
     parse_backtrack =>
      sub {
-      my $input_string_ref = shift;
-      my $rule_definition = shift;
-      my $stored_value = shift;
+      my $parameters = shift;
+      my $input_string_ref = $parameters->{parse_this_ref};
+      my $stored_value = $parameters->{match};
       if (defined $stored_value) {
         $$input_string_ref = $stored_value.$$input_string_ref;
       }
@@ -2045,13 +2115,20 @@ Damian Conway and Greg London.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2007-9 by Arthur Goldstein
+Copyright (C) 2007-9 by Arthur Goldstein.  All Rights Reserved.
+
+This module is free software. It may be used, redistributed and/or modified
+under the terms of the Perl Artistic License
+(see http://www.perl.com/perl/misc/Artistic.html)
+
 
 =head1 BUGS
 
 Please email in bug reports.
 
 =head1 TO DO AND FUTURE POSSIBLE CHANGES
+
+License
 
 Please send in suggestions.
 

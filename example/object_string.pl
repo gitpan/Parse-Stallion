@@ -135,9 +135,9 @@ my $calculator_stallion = new Parse::Stallion(
   {start_rule => 'start_expression',
   parse_forward =>
    sub {
-    my $input_string_ref = shift;
-    my $rule_definition = shift;
-    my $current_value = shift;
+    my $parameters = shift;
+    my $input_string_ref = $parameters->{parse_this_ref};
+    my $rule_definition = $parameters->{leaf_rule_info};
     $pf_count=1;
     my $match_rule = $rule_definition->{nsl_regex_match} ||
      $rule_definition->{leaf} ||
@@ -157,10 +157,9 @@ my $calculator_stallion = new Parse::Stallion(
    },
   parse_backtrack =>
    sub {
-    my $input_string_ref = shift;
-    my $rule_definition = shift;
-    my $current_value = shift;
-    my $stored_value = shift;
+    my $parameters = shift;
+    my $input_string_ref = $parameters->{parse_this_ref};
+    my $stored_value = $parameters->{match};
     $pb_count=1;
     if (defined $stored_value) {
       $$input_string_ref = $stored_value.$$input_string_ref;

@@ -1,5 +1,4 @@
 #Copyright 2008-9 Arthur S Goldstein
-#TESTING PHASE
 
 package Parse::Stallion::EBNF;
 use Carp;
@@ -63,8 +62,8 @@ sub ebnf {
 }
 
 my %ebnf_rules = (
-   ebnf_rule_list => M(O('rule','failed_rule',
-    A(qr/\s*\;/, 'comment', qr/\n\s*/)),
+   ebnf_rule_list => A('some_white_space',
+    M(A(O('rule','failed_rule'),'some_white_space')),
     E(sub {
         my $parse_hash = $_[3];
         my $any_errors = 0;
@@ -82,21 +81,25 @@ my %ebnf_rules = (
        if ($any_errors) {croak join("\n",@{$parse_hash->{errors}})}
        return $_[0]->{rule};})),
    rule =>
-    A(qr/\s*/, 'rule_name', qr/\s*\=\s*/, 'rule_def', qr /\s*\;/, 'comment',
-     qr /(\z|\n\s*)/,
+    A('rule_name', 'some_white_space', qr/\=/, 'some_white_space',
+     'rule_def', 'some_white_space', qr /\;/,
      E(sub {
          return {rule_name => $_[0]->{rule_name},
           rule_definition => $_[0]->{rule_def}}})),
+   real_white_space => A(qr/\s/, 'some_white_space'),
+   some_white_space => O(
+    A(qr/\s*\#/, 'comment', 'some_white_space'),
+    qr/\s*/,
+   ),
    rule_def =>
-    A('the_rule', qr/\s*/, Z('eval_subroutine'),
+    O(
+     A(qr/\(/, 'some_white_space', 'the_rule', 'some_white_space', qr/\)/,
+      Z(A('some_white_space', 'eval_subroutine'))),
+     A('the_rule'),
       E(sub {
          my $the_rule = $_[0]->{the_rule};
          my $rule_def;
-         if ($_[0]->{eval_subroutine}->{error}) {
-           return {'error' => "Subroutine in ".$_[0]->{rule_name}.
-            " has error: ".$_[0]->{eval_subroutine}->{error}}
-         }
-         elsif ($_[0]->{eval_subroutine}->{sub}) {
+         if ($_[0]->{eval_subroutine}->{sub}) {
            push @{$the_rule->{elements}}, $_[0]->{eval_subroutine}->{sub};
          }
          if ($the_rule->{rule_type} eq 'AND') {
@@ -115,15 +118,17 @@ my %ebnf_rules = (
            $rule_def = Z(@{$the_rule->{elements}});
          }
          return $rule_def})),
-   the_rule => O('leaf', 'quote', 'multiple', 'optional', 'and', 'or'),
+   the_rule => O('leaf', 'quote', 'pf_pb', 'multiple', 'optional', 'and', 'or'),
    comment => qr/[^\n]*/,
-   failed_rule => L(qr /[^;]*\;\s*/, 'comment',
-     qr /\n\s*/,
-    E(sub {my (undef, $text, $pos) = @_;
+   failed_rule => A(qr/[^;]*\;/,
+    E(sub {my (undef, $parameters) = @_;
+      my $text = $parameters->{parse_this_ref};
+      my $pos = $parameters->{current_value};
       my ($line, $position) = LOCATION($text, $pos);
       return "Error at line $line";
      })),
-   and => A( 'element' , M(A(qr/\s+/,'element')),
+   and => A( 'element' ,
+     M(A('real_white_space', 'element')),
     E(sub {
      return {rule_type => 'AND', elements => $_[0]->{element}};})),
    element => A(Z(A({alias=>'rule_name'}, qr/\./)), 'sub_element',
@@ -134,28 +139,40 @@ my %ebnf_rules = (
       return $_[0]->{sub_element}})),
    sub_element => O('rule_name', 'sub_rule',
     'optional_sub_rule',
-    'multiple_sub_rule', 'leaf_sub_rule', 'quote_sub_rule'),
-   optional_sub_rule => A( qr/\[\s*/i, 'rule_def', qr/\s*\]/i,
+    'multiple_sub_rule', 'leaf_sub_rule', 'pf_pb_subrule', 'quote_sub_rule',
+    'use_parse_match'),
+   use_parse_match => L(qr/\=PM/,
+    E(sub {return USE_PARSE_MATCH()})),
+   optional_sub_rule => A( qr/\[/, 'some_white_space',
+     'rule_def', 'some_white_space', qr/\]/i,
     E(sub {
       return Z($_[0]->{rule_def});})),
-   multiple_sub_rule => A( qr/\s*\{\s*/, 'rule_def', qr/\s*\}/, Z('min_max'),
+   multiple_sub_rule => A( qr/\{/,
+    'some_white_space', 'rule_def', 'some_white_space', qr/\}/,
+    Z('use_min_first'), Z('min_max'),
     E(sub {
       my $min = 0;
       my $max = 0;
       if ($_[0]->{min_max}) {
         $min = $_[0]->{min_max}->{min};
         $max = $_[0]->{min_max}->{max};
+      }
+      if ($_[0]->{use_min_first}) {
+        return M($_[0]->{rule_def},$min,$max, 'match_min_first');
       }
       return M($_[0]->{rule_def},$min,$max);}
      )),
-   sub_rule => A( qr/\(\s*/i, 'rule_def', qr/\s*\)/i,
+   sub_rule => A( qr/\(/, 'some_white_space', 'rule_def', 'some_white_space',
+    qr/\)/,
     E(sub { return $_[0]->{rule_def};})
    ),
    rule_name => qr/[a-zA-Z]\w*/,
-   or => A( 'element' , M(A(qr/\s*\|\s*/, 'element'), 1, 0),
+   or => A( 'element' , M(A('some_white_space', qr/\|/, 'some_white_space',
+    'element'), 1, 0),
     E(sub {return {rule_type => 'OR', elements => $_[0]->{element}}})),
-   multiple => A( qr/\s*\{\s*/, 'element', qr /\s*\}/, Z('min_max'),
-    qr/\s*/ ,
+   multiple => A( qr/\{/, 'some_white_space',
+   'element', 'some_white_space', qr/\}/, Z('use_min_first'),
+    Z('min_max'),
     E(sub {
       my $min = 0;
       my $max = 0;
@@ -163,10 +180,16 @@ my %ebnf_rules = (
         $min = $_[0]->{min_max}->{min};
         $max = $_[0]->{min_max}->{max};
       }
+      if ($_[0]->{use_min_first}) {
+        return {rule_type => 'MULTIPLE',
+         elements => [$_[0]->{element},$min,$max, 'match_min_first']};
+      }
       return {rule_type => 'MULTIPLE', elements => [$_[0]->{element},$min,$max]}
      })),
-   min_max => A(qr/\s*\*\s*/,{min=>qr/\d+/},qr/\s*\,\s*/,{max=>qr/\d+/}),
-   optional => A( qr/\s*\[\s*/, 'element', qr/\s*\]\s*/,
+   min_max => A(qr/\*/,{min=>qr/\d+/},qr/\,/,{max=>qr/\d+/}),
+   use_min_first => qr/\?/,
+   optional => A( qr/\[/, 'some_white_space',
+    'element', 'some_white_space', qr/\]/,
     E(sub {
       return {rule_type => 'OPTIONAL', elements => [$_[0]->{element}]}
      })),
@@ -189,7 +212,9 @@ my %ebnf_rules = (
       }
       return {rule_type => 'LEAF', elements => [qr/$li/]}})),
    leaf_info => L(PF(
-    sub {my ($in_ref, undef, $pos) = @_;
+    sub {my $parameters = shift;
+      my $in_ref = $parameters->{parse_this_ref};
+      my $pos = $parameters->{current_value};
       my $previous = substr($$in_ref, $pos-1, 1);
       pos $$in_ref = $pos;
       if ($$in_ref =~ /\G([^$previous]+$previous)/) {
@@ -200,22 +225,63 @@ my %ebnf_rules = (
       }
     }
    )),
-   eval_subroutine => A( qr/S[^\w\s]/, 'sub_routine',
-    E(sub {
-      if ($_[0]->{sub_routine}->{error}) {
-        return {'error' => $_[0]->{sub_routine}->{error}};
+   pf_pb_subrule => A('parse_forward',
+    Z(A('some_white_space', 'parse_backtrack')),
+    E (sub {
+       if ($_[0]->{parse_backtrack}) {
+         return L(PF($_[0]->{parse_forward}),
+           PB($_[0]->{parse_backtrack}));
+          };
+       return L(PF($_[0]->{parse_forward}));
+     }
+   )),
+   pf_pb => A('parse_forward', Z(A('some_white_space', 'parse_backtrack')),
+     E(sub {
+     if ($_[0]->{parse_backtrack}) {
+       return {rule_type => 'LEAF', elements => [
+         PF($_[0]->{parse_forward}),
+         PB($_[0]->{parse_backtrack}),
+        ]};
       }
-      return {'sub' => SE($_[0]->{'sub_routine'}->{the_sub})}})
+      return {rule_type => 'LEAF', elements => [
+        PF($_[0]->{parse_forward}),
+       ]};
+   })),
+   quote_sub_rule => A( O(A(qr/q/i, qr/[^\w\s]/), qr/(\"|\')/), 'leaf_info',
+    E(sub {my $li = $_[0]->{leaf_info}; substr($li, -1) = '';
+      $li =~ s/(\W)/\\$1/g;
+      return L(qr/$li/)})),
+   quote => A( O(A(qr/q/i, qr/[^\w\s]/,), qr/(\"|\')/), 'leaf_info',
+    E(sub {my $li = $_[0]->{leaf_info}; substr($li, -1) = '';
+      $li =~ s/(\W)/\\$1/g;
+      return {rule_type => 'LEAF', elements => [qr/$li/]}})),
+   parse_backtrack => A( qr/B[^\w\s]/, 'sub_routine',
+    E(sub {
+       my $routine = eval $_[0]->{sub_routine}->{the_sub};
+       if ($@) {croak $@};
+       return $routine;})
+   ),
+   parse_forward => A( qr/F[^\w\s]/, 'sub_routine',
+    E(sub {
+       my $routine = eval $_[0]->{sub_routine}->{the_sub};
+       if ($@) {croak $@};
+       return $routine;})
+   ),
+   eval_subroutine => A( qr/S[^\w\s]/, 'sub_routine',
+    E(sub {return {'sub' => SE($_[0]->{'sub_routine'}->{the_sub})}})
    ),
    sub_routine => L(PARSE_FORWARD(
-    sub {my ($in_ref, undef, $pos) = @_;
+    sub {my $parameters = shift;
+      my $in_ref = $parameters->{parse_this_ref};
+      my $pos = $parameters->{current_value};
       my $previous = substr($$in_ref, $pos-1, 1);
+      my $previous2 = substr($$in_ref, $pos-2, 1);
       pos $$in_ref = $pos;
       my $opposite;
       if ($previous eq '{') {$opposite = '}'};
       if ($previous eq '[') {$opposite = ']'};
-      if ($previous eq '(') {$opposite = ')'};
-      if ($$in_ref =~ /\G(.*?$opposite(S))/s) {
+      if (!defined $opposite) {return 0}
+      if ($$in_ref =~ /\G(.*?$opposite($previous2))/s) {
         return 1, $1, $pos + length($1);
       }
       else {
@@ -226,9 +292,6 @@ my %ebnf_rules = (
        my $subroutine = shift;
        substr($subroutine, -2) = '';
        return {the_sub => $subroutine};
-#       $subroutine = 'sub {'.$subroutine.'}';
-#       my $the_sub = eval $subroutine;
-#       return {the_sub => $the_sub, error => $@};
      }
    ))
 );
@@ -285,7 +348,7 @@ Parse::Stallion::EBNF - Output/Input parser in Extended Backus Naur Form.
 
   #Input
   my $rules = '
-    start = number qr/\s*\+\s*/ number
+    start = (number qr/\s*\+\s*/ number)
      S{return $number->[0] + $number->[1]}S;
     number = qr/\d+/;
   ';
@@ -331,9 +394,12 @@ may contain digits as well.  They are case sensitive.
 
 =head3 LEAF
 
+'leaf' rule can be done on a string via 'qr' or 'q' or as a
+parse_forward/optionally parse_backtract combination.
+
 'leaf' rule, the rule_def can be a 'qr' or 'q'
 followed by a non-space, non-word
-character (\W) up to a repitition of that character.  What
+character (\W) up to a repetition of that character.  What
 is betweent the characters is treated as either a regular expression (if 'qr')
 or a string (if 'q').  Additionally, if a string is within quotes or
 double quotes it is treated as a string.  The following are the same:
@@ -368,7 +434,8 @@ For example:
 
    multiple_rule = {ruleM}*5,0;
 
-would have at least 5 occurences of ruleM.
+would have at least 5 occurences of ruleM.  The maximum is required and 0
+sets it to unlimited.
 
 Optional rules can be specified within square brackets.  The following
 are the same:
@@ -376,6 +443,13 @@ are the same:
   {rule_a}*0,1
 
   [rule_a]
+
+To try to parse with the minimum occurences of a multiple rule first and
+then go increasing order add a '?' after the right curly brace:
+
+  multiple_rule2 ={ruleX}?;
+
+  multiple_rule ={ruleX}?*3,9;
 
 =head3 SUBRULES
 
@@ -387,7 +461,9 @@ parentheses.
 An alias may be specified by an alias name followed by a dot:
 the alias then a dot.  I.e.,
 
-    alias.rule
+    rule_1 = rule_2 S{print $rule_2;}S;
+
+    rule_3 = alias.rule_2 S{print $alias;}S;
 
     alias.qr/regex/
 
@@ -398,9 +474,10 @@ the alias then a dot.  I.e.,
 =head3 EVALUATION
 
 For the evaluation phase (see Parse::Stallion) any
-rule can have at the end of its definition, before the semicolon,
-a subroutine that should be enclosed within S{ til }S.  Or else S[ til ]S or (S
-til )S.  The 'sub ' declaration is done internally.
+rule can be enclosed within parentheses followed by
+an evaluationsubroutine that should be enclosed within S{ til }S.
+Or else S[ til ]S.
+The 'sub ' declaration is done internally.
 
 Internally all subrules have variables created that contain
 their evaluated values.  If a subrule's name may occur more than once it is
@@ -410,7 +487,7 @@ create code for reading in the parameters.
 
 Examples:
 
-   rule = number plus number S{subroutine}S;
+   rule = (number plus number) S{subroutine}S;
 
 will create an evaluation subroutine string and eval:
 
@@ -422,7 +499,7 @@ will create an evaluation subroutine string and eval:
 
 $number is an array ref, $plus is the returned value from subrule plus.
 
-  number = /\d+/ S{subroutine}S;
+  number = (/\d+/) S{subroutine}S;
 
 is a leaf rule, which only gets one argument to its subroutine:
 
@@ -434,29 +511,29 @@ is a leaf rule, which only gets one argument to its subroutine:
 Evaluation is only done after parsing unlike the option of during parsing
 found in Parse::Stallion.
 
+=head3 PARSE_MATCH
+
+By putting =PM within a rule (or subrule), the parse_match is used
+instead of the returned or generated values.
+
+   ab = (x.({qr/\d/} =PM) qr/\d/) S{$x}; #Will return a string
+
+   cd = (y.{qr/\d/} qr/\d/) S{$y}; #Will return hash ref to an array ref
 
 =head3 COMMENTS
 
-Comments may be placed on the lines after the semi-colon:
+Comments may be placed on lines after a hash ('#'):
 
-   rule = 'xxx' ; comment
-   ; comment 2
-   ; comment 3
+    rule = (sub1 # comment
+    sub2 #comment
+    sub3) S{}
+    # comment
 
-head3 PRECEDENCE
+=head3 PARSE_FORWARD
 
-If there are multiple rules within an or clause it is recommended they
-be put together within parentheses:
-
-   a = (b c) | d ;   a = b c | d will not work
-
-The last subroutine corresponds to the whole rule:
-
-   a = e.(c S{...s1...}S) | d S{...s2...}S ;
-
-s1, if called, will get $c as an argument.
-s2, if called will get either $e or $d as an argument and the other will be
-undef.
+As in Parse::Stallion, a PARSE_FORWARD routine may be declared via
+F{ sub {your routine} }F (or F[ followed by ]F).
+A PARSE_BACKTRACK routine can follow via a B{ sub {...}}B.
 
 =head1 SEE ALSO
 

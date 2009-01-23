@@ -9,7 +9,9 @@ my %dog_rules = (
  bunch_of_chars => M(qr/./),
  dog => qr/dog/,
  no_cat => L(PF(
-   sub{my ($string, undef, $cv) = @_;
+   sub{my $parameters = shift;
+     my $string = ${$parameters->{parse_this_ref}};
+     my $cv = $parameters->{current_value};
      if ($string =~ /cat/) {
         return (0, undef);
      }

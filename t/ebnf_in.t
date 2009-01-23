@@ -1,15 +1,16 @@
 #!/usr/bin/perl
 #Copyright 2008-9 Arthur S Goldstein
-use Test::More tests => 61;
+use Test::More tests => 70;
+
 BEGIN { use_ok('Parse::Stallion::EBNF') };
 
 my $rules=<<'END';
-start = number plus number
+start = (number plus number)
  S{
  #use Data::Dumper;print STDERR "input is ".Dumper(\@_)."\n";
   return $number->[0] + $number->[1]}S;
 plus = qr/\s*\+\s*/;
-number = qr/\d+/ S{
+number = (qr/\d+/) S{
  #use Data::Dumper;print STDERR "ninput is ".Dumper(\@_)."\n";
  return 0 + $_}S;
 END
@@ -26,7 +27,7 @@ my $value = $rule_parser->parse_and_evaluate('1 + 1'
 is($value, 2, 'did simple addition');
 
 my $morerules=<<'END';
-start = term plus_terms
+start = (term plus_terms)
  S{
  #use Data::Dumper;print STDERR "startinput is ".Dumper(\@_)."\n";
   my $value = $term;
@@ -37,9 +38,9 @@ start = term plus_terms
   }
   return $value}S;
 plus_terms = {plus_term};
-plus_term = plus term S{return $term}S;
+plus_term = (plus term) S{return $term}S;
 plus = qr/\s*\+\s*/;
-term = number times_numbers
+term = (number times_numbers)
  S{
  #use Data::Dumper;print STDERR "terminput is ".Dumper(\@_)."\n";
   my $value = $number;
@@ -50,9 +51,9 @@ term = number times_numbers
   }
   return $value}S;
 times_numbers = {times_number};
-times_number = times number S{return $number}S;
+times_number = (times number) S{return $number}S;
 times = qr/\s*\*\s*/;
-number = qr/\d+/ S{
+number = (qr/\d+/) S{
  #use Data::Dumper;print STDERR "xinput is ".Dumper(\@_)."\n";
  return 0 + $_}S;
 END
@@ -95,7 +96,7 @@ $value =
 is($value, 71 , 'more did big calculation');
 
 my $badmorerules=<<'END';
-start = term plus_terms
+start = (term plus_terms)
  S{
  #use Data::Dumper;print STDERR "startinput is ".Dumper(\@_)."\n";
   my $value = $term;
@@ -106,10 +107,10 @@ start = term plus_terms
   }
   return $value}S;
 plus_terms = {plus_term};
-plus_term = plus term S{return $term}S;
+plus_term = (plus term) S{return $term}S;
 plus = qr/\s*\+\s*/;
 x;
-term = number times_numbers
+term = (number times_numbers)
  S{
  #use Data::Dumper;print STDERR "terminput is ".Dumper(\@_)."\n";
   my $value = $number;
@@ -120,9 +121,9 @@ term = number times_numbers
   }
   return $value}S;
 times_numbers = {times_number};
-times_number = times && number S{return $number}S;
+times_number = (times && number) S{return $number}S;
 times = qr/\s*\*\s*/;
-number = qr/\d+/ S{
+number = (qr/\d+/) S{
  #use Data::Dumper;print STDERR "xinput is ".Dumper(\@_)."\n";
  return 0 + $_}S;
 END
@@ -132,7 +133,7 @@ like($@, qr/Error at line 14\b/, 'x error');
 like($@, qr/Error at line 26\b/, '&& error');
 
 my $dupmorerules=<<'END';
-start = term plus_terms
+start = (term plus_terms)
  S{
  #use Data::Dumper;print STDERR "startinput is ".Dumper(\@_)."\n";
   my $value = $term;
@@ -144,9 +145,9 @@ start = term plus_terms
   return $value}S;
 plus_terms = {plus_term};
 plus_terms = {plus_term};
-plus_term = plus term S{return $term}S;
+plus_term = (plus term) S{return $term}S;
 plus = qr/\s*\+\s*/;
-term = number times_numbers
+term = (number times_numbers)
  S{
  #use Data::Dumper;print STDERR "terminput is ".Dumper(\@_)."\n";
   my $value = $number;
@@ -157,9 +158,9 @@ term = number times_numbers
   }
   return $value}S;
 times_numbers = {times_number};
-times_number = times number S{return $number}S;
+times_number = (times number) S{return $number}S;
 times = qr/\s*\*\s*/;
-number = qr/\d+/ S{
+number = (qr/\d+/) S{
  #use Data::Dumper;print STDERR "xinput is ".Dumper(\@_)."\n";
  return 0 + $_}S;
 END
@@ -169,7 +170,7 @@ my $dupmorerule_parser = eval {ebnf_new Parse::Stallion::EBNF($dupmorerules)};
 like($@, qr/Duplicate rule name plus_terms/, 'plus terms error');
 
 my $bsmorerules=<<'END';
-start = term plus_terms
+start = (term plus_terms)
  S{
  #use Data::Dumper;print STDERR "startinput is ".Dumper(\@_)."\n";
   my $value = $term;
@@ -180,9 +181,9 @@ start = term plus_terms
   }
   return $value}S;
 plus_terms = {plus_term};
-plus_term = plus term S{return $term}S;
+plus_term = (plus term) S{return $term}S;
 plus = qr/\s*\+\s*/;
-term = number times_numbers
+term = (number times_numbers)
  S{
  #use Data::Dumper;print STDERR "terminput is ".Dumper(\@_)."\n";
   m $value = $number;
@@ -193,9 +194,9 @@ term = number times_numbers
   }
   return $value}S;
 times_numbers = {times_number};
-times_number = times number S{return $number}S;
+times_number = (times number) S{return $number}S;
 times = qr/\s*\*\s*/;
-number = qr/\d+/ S{
+number = (qr/\d+/) S{
  #use Data::Dumper;print STDERR "xinput is ".Dumper(\@_)."\n";
  rturn 0 + $_}S;
 END
@@ -208,7 +209,7 @@ END
 #like($@, qr/Subroutine in number has error/, 'sub number error');
 
 my $subrules=<<'END';
-start = term plus_terms
+start = (term plus_terms)
  S{
  #use Data::Dumper;print STDERR "startinput is ".Dumper(\@_)."\n";
   my $value = $term;
@@ -219,8 +220,8 @@ start = term plus_terms
   }
   return $value}S;
 plus_terms = {plus_term};
-plus_term = (qr/\s*\+\s*/) term S{return $term}S;
-term = number times_numbers
+plus_term = ((qr/\s*\+\s*/) term) S{return $term}S;
+term = (number times_numbers)
  S{
  #use Data::Dumper;print STDERR "terminput is ".Dumper(\@_)."\n";
   my $value = $number;
@@ -231,9 +232,9 @@ term = number times_numbers
   }
   return $value}S;
 times_numbers = {times_number};
-times_number = times number S{return $number}S;
+times_number = (times number) S{return $number}S;
 times = qr/\s*\*\s*/;
-number = qr/\d+/ S{
+number = (qr/\d+/) S{
  #use Data::Dumper;print STDERR "xinput is ".Dumper(\@_)."\n";
  return 0 + $_}S;
 END
@@ -250,7 +251,7 @@ $value = $subrule_parser->parse_and_evaluate('1 + 1'
 is($value, 2, 'sub did simple addition');
 
 my $subsubrules=<<'END';
-start = term plus_terms
+start = (term plus_terms)
  S{
  #use Data::Dumper;print STDERR "startinput is ".Dumper(\@_)."\n";
   my $value = $term;
@@ -260,8 +261,8 @@ start = term plus_terms
     }
   }
   return $value}S;
-plus_terms = {((qr/\s*\+\s*/) term S{return $term}S)};
-term = number times_numbers
+plus_terms = {(((qr/\s*\+\s*/) term) S{return $term}S)};
+term = (number times_numbers)
  S{
  #use Data::Dumper;print STDERR "terminput is ".Dumper(\@_)."\n";
   my $value = $number;
@@ -272,9 +273,9 @@ term = number times_numbers
   }
   return $value}S;
 times_numbers = {times_number};
-times_number = times number S{return $number}S;
+times_number = (times number) S{return $number}S;
 times = qr/\s*\*\s*/;
-number = qr/\d+/ S{
+number = (qr/\d+/) S{
  #use Data::Dumper;print STDERR "xinput is ".Dumper(\@_)."\n";
  return 0 + $_}S;
 END
@@ -413,9 +414,9 @@ ok(!defined $value, 'qqmult on qssttt');
 
 my $nrules=<<'END';
 start = qr/q/ [s] {t}*0,2;
-s = qr/\ws/; comment
+s = qr/\ws/; # comment
 t = '\wt';
-;another comment
+#another comment
 END
 
 my $nparser = ebnf_new Parse::Stallion::EBNF($nrules);
@@ -454,11 +455,11 @@ $value = $nparser->parse_and_evaluate('qss\wt\wt\wt');
 ok(!defined $value, 'n on qss\wt\wt\wt');
 
 my $alias_rules=<<'END';
-start = left.(number) plus right.(number)
+start = (left.(number) plus right.(number))
  S{
   return $left->{number} + $right->{number}}S;
 plus = qr/\s*\+\s*/;
-number = qr/\d+/ S{
+number = (qr/\d+/) S{
  #use Data::Dumper;print STDERR "ninput is ".Dumper(\@_)."\n";
  return 0 + $_}S;
 END
@@ -489,11 +490,12 @@ ok(!defined $value, 'bye to you');
 
 
 my $dotalias_rules=<<'END';
-start = left.number plus right.number
+start = (left.number plus #comment
+right.number)
  S{
   return $left + $right}S;
 plus = qr/\s*\+\s*/;
-number = qr/\d+/ S{
+number = (qr/\d+/) S{
  return 0 + $_}S;
 END
 
@@ -503,7 +505,7 @@ $value = $dotalias_rule_parser->parse_and_evaluate('1 + 2');
 
 is($value, 3, 'did simple dot alias addition');
 
-   my $grammar_3 = 'start = left.number qr/\s*\+\s*/ right.number
+   my $grammar_3 = 'start = (left.number qr/\s*\+\s*/ right.number)
         S{return $left + $right}S;
       number = qr/\d+/;';
 
@@ -530,7 +532,7 @@ $value = $sl_parser->parse_and_evaluate('//');
 ok($value, 'sl on q');
 
 my $prrules=<<'END';
-a = (c S{3}S) | d S{if (defined $d) {$d} else {$_}}S;
+a = (((c) S{3}S) | d) S{if (defined $d) {$d} else {$_}}S;
 d = qr/5/;
 c = qr/7/;
 END
@@ -541,8 +543,9 @@ $value = $pr_parser->parse_and_evaluate('7');
 is($value, 3, 'precedence test');
 
 my $aprrules=<<'END';
-a = d.(c S{9}S ) | d S{$d}S ;
-d = qr/5/;
+a = (d.((c) S{9}S ) | d) S{$d}S ;
+d = #new comment
+ qr/5/;
 c = qr/7/;
 END
 
@@ -556,6 +559,85 @@ is($value, 9, 'precedence test a2');
 
 $value = $apr_parser->parse_and_evaluate('9');
 is($value, undef, 'precedence test a3');
+
+my $use_min_rules=<<'END';
+a = (lll.((x.{y.qr/\d/}?*1,0)
+   S{
+#   use Data::Dumper; print STDERR "par ".Dumper(\@_)."\n";
+   return join('',@{$x->{y}})}S )
+ qr/\d+/)
+   S{
+#   use Data::Dumper; print STDERR "ptar ".Dumper(\@_)."\n";
+   return $lll}S
+;
+END
+
+my $use_min__parser = ebnf_new Parse::Stallion::EBNF($use_min_rules);
+
+my $use_max_rules=<<'END';
+ab = (x.(y.{z.qr/\d/}) qr/\d+/) S{
+#   use Data::Dumper; print STDERR "ptar ".Dumper(\@_)."\n";
+join('',@{$x->{y}->{z}}) }S;
+END
+
+my $use_max__parser = ebnf_new Parse::Stallion::EBNF($use_max_rules);
+
+$value = $use_min__parser->parse_and_evaluate('885');
+is($value, 8, 'min rules');
+
+$value = $use_max__parser->parse_and_evaluate('885');
+is($value, 88, 'max rules');
+
+my $newe_rules=<<'END';
+ab = (x.({qr/\d/} =PM) qr/\d+/) S{
+#   use Data::Dumper; print STDERR "ptar ".Dumper(\@_)."\n";
+$x}S;
+END
+
+my $newe_parser = ebnf_new Parse::Stallion::EBNF($newe_rules);
+
+$value = $newe_parser->parse_and_evaluate('885');
+is($value, 88, 'newe rules');
+
+my $newf_rules=<<'END';
+cd = (y.{i.qr/\d/} qr/\d+/) S{
+#   use Data::Dumper; print STDERR "ptar ".Dumper(\@_)."\n";
+$y}S;
+END
+
+my $newf_parser = ebnf_new Parse::Stallion::EBNF($newf_rules);
+
+$value = $newf_parser->parse_and_evaluate('885');
+#use Data::Dumper;print STDERR "val ".Dumper($value)."\n";
+is_deeply($value, {i=>[8,8]}, 'newf rules');
+
+my $pf_rules=<<'END';
+pft = (qr/\d/ F{sub {return (1,'x',1)}}F qr/\d/ =PM) S{return $_}S;
+END
+
+my $pf_parser = ebnf_new Parse::Stallion::EBNF($pf_rules);
+
+$value = $pf_parser->parse_and_evaluate('74');
+#use Data::Dumper;print STDERR "val ".Dumper($value)."\n";
+is_deeply($value, '7x4', 'pf rules');
+
+our $j;
+my $pfb_rules=<<'END';
+pft = (qr/\d/ F{sub {return (1,'x',1)}}F B{sub {$::j='q'; return;}}B
+  qr/\d/ =PM) S{return $_}S;
+END
+
+my $pfb_parser = ebnf_new Parse::Stallion::EBNF($pfb_rules);
+
+$value = $pfb_parser->parse_and_evaluate('7x');
+is_deeply($j, 'q', 'pb rules');
+is_deeply($value, undef, 'pb value rules');
+
+$j = 'k';
+
+$value = $pfb_parser->parse_and_evaluate('79');
+is_deeply($j, 'k', 'pb rules');
+is_deeply($value, '7x9', 'pb value rules');
 
 print "All done\n";
 

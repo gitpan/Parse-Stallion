@@ -6,7 +6,7 @@ my $calculator=<<'END';
 
  start_expression = expression;
 
- expression = term {plus_or_minus term}
+ expression = (term {plus_or_minus term})
   S{my $value = shift @$term;
     for my $i (0..$#{$term}) {
       if ($plus_or_minus->[$i] eq '+') {
@@ -18,7 +18,7 @@ my $calculator=<<'END';
     }
     return $value;}S ;
 
- term = factor {times_or_divide_or_modulo factor}
+ term = (factor {times_or_divide_or_modulo factor})
   S{my $value = shift @$factor;
     for my $i (0..$#{$factor}) {
       if ($times_or_divide_or_modulo->[$i] eq '*') {
@@ -35,7 +35,7 @@ my $calculator=<<'END';
     return $value;
    }S ;
 
- factor = fin_exp {power_of fin_exp}
+ factor = (fin_exp {power_of fin_exp})
     S{
     my $value = pop @$fin_exp;
     while ($#{$fin_exp} > -1) {
@@ -45,11 +45,11 @@ my $calculator=<<'END';
    }S ;
 
  fin_exp = 
-   (left_parenthesis expression right_parenthesis S{$expression}S )
-    | (number S{$number}S) ;
+   ((left_parenthesis expression right_parenthesis) S{$expression}S)
+    | ((number) S{$number}S) ;
 
  number =
-  qr/\s*[+-]?(\d+(\.\d*)?|\.\d+)\s*/ S{return 0 + $_}S;
+  (qr/\s*[+-]?(\d+(\.\d*)?|\.\d+)\s*/) S{return 0 + $_}S;
 
  left_parenthesis = qr/\s*\(\s*/;
 

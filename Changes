@@ -1,5 +1,14 @@
 Revision history for Perl extension Parse::Stallion.
 
+0.70
+    Parameters to evaluation/parse_forward/parse_backtrack modified
+    to get in hash.
+
+    parse done in eval so can croak error messages to calling code
+
+    Some more functionality to ebnf_new (comments, parse forward,
+     match_min_first, parentheses around rules to subroutines)
+
 0.60
      Evaluation after parsing also gets entered value as argument.
 
