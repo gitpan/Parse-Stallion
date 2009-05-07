@@ -1,6 +1,6 @@
 #!/usr/bin/perl
-#Copyright 2007-8 Arthur S Goldstein
-use Test::More tests => 8;
+#Copyright 2007-9 Arthur S Goldstein
+use Test::More tests => 12;
 use Carp;
 BEGIN { use_ok('Parse::Stallion') };
 
@@ -43,7 +43,7 @@ my $calculator_parser = new Parse::Stallion(
   {start_rule => 'start_expression'});
 
 eval { my $result = $calculator_parser->parse_and_evaluate("7+4"); };
-like ($@, qr/^expression duplicated in parse/,'invalid grammar 1');
+like ($@, qr/^expression duplicated at position /,'invalid grammar 1');
 
 my %empty_rules = (
  start_expression => A(
@@ -72,12 +72,17 @@ empty => L(
 ,
 );
 
+my @pt;
 my $empty_parser = new Parse::Stallion(
   \%empty_rules,
-  {start_rule => 'start_expression'});
+  {start_rule => 'start_expression'
+  });
 
-eval { my $result = $empty_parser->parse_and_evaluate( "7+4" ); };
-like ($@, qr/^expression duplicated in parse/,'invalid grammar 2');
+eval { my $result = $empty_parser->parse_and_evaluate( "7+4",
+  {parse_trace => \@pt,
+   max_steps => 100} ); };
+like ($@, qr/^expression duplicated at position/,'invalid grammar 2');
+#use Data::Dumper; print STDERR "pt is ".Dumper(\@pt)."\n";
 
 my %third_calculator_rules = (
  start_expression => A(
@@ -170,6 +175,26 @@ my %bad_rule_set_3 = (
 $bad_parser = eval {new Parse::Stallion( \%bad_rule_set_3)};
 
 like ($@, qr/contains separator/,'separator named rule');
+
+   my $one_grammar = {start => L(qr/1/)};
+   my $parser = new Parse::Stallion($one_grammar);
+   my $partial_parser = new Parse::Stallion($one_grammar, 
+     {need_not_match_whole_string => 1});
+   $one_results = $parser->parse_and_evaluate('12');  # does not parse
+   $onep_results = $partial_parser->parse_and_evaluate('12');  # parses
+
+is($one_results, undef, "no partial match");
+is($onep_results, '1', "partial match");
+
+$mult_grammar = {
+  start => A(M('empty'), qr/1/),
+  empty => qr/.*/};
+my $mult_parser = new Parse::Stallion($mult_grammar);
+$m_result = $mult_parser->parse_and_evaluate('1');
+$m_result2 = $mult_parser->parse_and_evaluate('11');
+
+is($m_result, '1', "multiple empty");
+is($m_result2, undef, "multiple empty 2");
 
 print "\nAll done\n";
 

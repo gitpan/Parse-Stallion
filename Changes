@@ -1,5 +1,46 @@
 Revision history for Perl extension Parse::Stallion.
 
+0.80
+    MATCH_ONCE added
+
+    Parse::Stallion::RD added
+
+    parse_hash and parameters to parse_forward, parse_backward,
+     second parameter to evaluation, unevaluation
+     access to node in parse tree
+
+    ebnf_new has more informative error message.
+
+    moved VERSION variable to $Parse::Stallion::VERSION
+
+    Fixed bug that prevented evaluation routines in optional rules
+
+    Optional parameter start_rule to parse_and_evaluate. 
+
+    Changed current_value/value_when_entered/final_value/initial_value to
+    current_position/position_when_entered/final_position/initial_position
+
+    Fixed problem with multiple rules that have 0 children not being allowed
+    to repeat on same position, that should be allowed.
+    Also fixed problem with multiple rules have zero width children, that
+    is not allowed.
+
+    Partial string parses (need_not_match_whole_string)
+
+    Parse tree node accessible from parse_forward, parse_backward,
+    evaluation, and unevaluation routines.
+
+    final_position_routine, initial_position_routine, start_position
+
+    no_evaluation, traversal_only, unreachable_rules_allowed,
+    start_rule in parse_and_evaluate
+
+    TOKEN/TERMINAL added for LEAF alias
+
+    Removed copying of input string.
+
+    Tips on large input added to documentation
+
 0.70
     Parameters to evaluation/parse_forward/parse_backtrack modified
     to get in hash.

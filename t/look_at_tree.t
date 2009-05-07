@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-#Copyright 2007-8 Arthur S Goldstein
+#Copyright 2007-9 Arthur S Goldstein
 use Test::More tests => 10;
 #use Data::Dumper;
 BEGIN { use_ok('Parse::Stallion') };
@@ -64,7 +64,7 @@ my %calculator_rules = (
    qr/\s*[\-+]\s*/, E(qr/\s*([\-+])\s*/),
  ),
  times_or_divide => L(
-   qr/\s*[*\/]\s*/, E(qr/\s*([*\/])\s*/),
+   qr/\s*[*\/]\s*/, E(qr/\s*([*\/])\s*/), USE_PARSE_MATCH
  ),
 );
 
@@ -120,19 +120,19 @@ is_deeply(\@bottom_up_names,
 is_deeply(\@bottom_up_pvalues,
 [  '3',
           undef,
-          '3',
+          undef,
           '+',
           '7',
           '*',
           '4',
-          '*4',
-          '*4',
-          '7*4',
-          '+7*4',
-          '+7*4',
-          '3+7*4',
+          undef,
+          undef,
+          undef,
+          undef,
+          undef,
+          undef,
           '',
-          '3+7*4'
+          undef
 ]
 , 'pvalues in bottom up search');
 
@@ -145,18 +145,18 @@ is_deeply(\@bottom_up_pvalues,
 my $pm = $parsed_tree->stringify({values=>['name','parse_match']});
 
 my $pq = 
-'start_expression|3+7*4|
- expression|3+7*4|
-  term|3|
+'start_expression||
+ expression||
+  term||
    number|3|
    term__XZ__1||
-  expression__XZ__1|+7*4|
-   expression__XZ__2|+7*4|
+  expression__XZ__1||
+   expression__XZ__2||
     plus_or_minus|+|
-    term|7*4|
+    term||
      number|7|
-     term__XZ__1|*4|
-      term__XZ__2|*4|
+     term__XZ__1||
+      term__XZ__2||
        times_or_divide|*|
        number|4|
  start_expression__XZ__1||
@@ -172,9 +172,10 @@ is($parsed_tree->stringify({values=>['name','parse_match']}), $pq,
   my %no_eval_rules = (
    start_rule => A('term',
     M(A ({plus=>qr/\s*\+\s*/}, 'term'))),
-   term => A({left=>'number'},
+   term => A({left=>'number_or_x'},
     M (A({times=>qr/\s*\*\s*/},
-     {right=>'number'}))),
+     {right=>'number_or_x'}))),
+   number_or_x => O('number',qr/x/),
    number => qr/\s*\d*\s*/,
   );
 
@@ -183,6 +184,7 @@ is($parsed_tree->stringify({values=>['name','parse_match']}), $pq,
    {do_not_compress_eval => 0 });
 
   $result = $no_eval_parser->parse_and_evaluate("7+4*8");
+#use Data::Dumper; print STDERR "result is ".Dumper($result);
 
   is_deeply($result,{                                  
           'plus' => [
@@ -216,12 +218,12 @@ is($parsed_tree->stringify({values=>['name','parse_match']}), $pq,
                     ],
           'term' => [
                       {
-                        'left' => '7'
+                        'left' => {number => '7'}
                       },
                       {
-                        'left' => '4',
+                        'left' => {number => '4'},
                         'right' => [
-                                     '8'
+                                     {number => '8'}
                                    ],
                         'times' => [
                                      '*'

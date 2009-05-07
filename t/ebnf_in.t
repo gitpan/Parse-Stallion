@@ -589,7 +589,7 @@ $value = $use_max__parser->parse_and_evaluate('885');
 is($value, 88, 'max rules');
 
 my $newe_rules=<<'END';
-ab = (x.({qr/\d/} =PM) qr/\d+/) S{
+ab = (x.({qr/\d/} =SM) qr/\d+/) S{
 #   use Data::Dumper; print STDERR "ptar ".Dumper(\@_)."\n";
 $x}S;
 END
@@ -612,19 +612,19 @@ $value = $newf_parser->parse_and_evaluate('885');
 is_deeply($value, {i=>[8,8]}, 'newf rules');
 
 my $pf_rules=<<'END';
-pft = (qr/\d/ F{sub {return (1,'x',1)}}F qr/\d/ =PM) S{return $_}S;
+pft = (qr/\d/ F{sub {return (1,'x',1)}}F qr/\d/ =SM) S{return $_}S;
 END
 
 my $pf_parser = ebnf_new Parse::Stallion::EBNF($pf_rules);
 
 $value = $pf_parser->parse_and_evaluate('74');
 #use Data::Dumper;print STDERR "val ".Dumper($value)."\n";
-is_deeply($value, '7x4', 'pf rules');
+is_deeply($value, '74', 'pf rules');
 
 our $j;
 my $pfb_rules=<<'END';
 pft = (qr/\d/ F{sub {return (1,'x',1)}}F B{sub {$::j='q'; return;}}B
-  qr/\d/ =PM) S{return $_}S;
+  qr/\d/ =SM) S{return $_}S;
 END
 
 my $pfb_parser = ebnf_new Parse::Stallion::EBNF($pfb_rules);
@@ -637,7 +637,7 @@ $j = 'k';
 
 $value = $pfb_parser->parse_and_evaluate('79');
 is_deeply($j, 'k', 'pb rules');
-is_deeply($value, '7x9', 'pb value rules');
+is_deeply($value, '79', 'pb value rules 2');
 
 print "All done\n";
 

@@ -55,6 +55,24 @@ sub ebnf {
           push @queue, $subrule->{name};
         }
       }
+      if ($parser->{rule}->{$rule}->{minimize_children}) {
+        $results .= ' -MATCH_MIN_FIRST- ';
+      }
+      if ($parser->{rule}->{$rule}->{parsing_evaluation}) {
+        $results .= ' -EVALUATION- ';
+      }
+      if ($parser->{rule}->{$rule}->{parsing_unevaluation}) {
+        $results .= ' -UNEVALUATION- ';
+      }
+      if ($parser->{rule}->{$rule}->{use_string_match}) {
+        $results .= ' -USE_STRING_MATCH- ';
+      }
+      if ($parser->{rule}->{$rule}->{match_once}) {
+        $results .= ' -MATCH_ONCE- ';
+      }
+      if ($parser->{rule_info}->{$rule}) {
+        $results .= ' -RULE_INFO- ';
+      }
       $results .= " ;\n";
     }
   }
@@ -62,7 +80,8 @@ sub ebnf {
 }
 
 my %ebnf_rules = (
-   ebnf_rule_list => A('some_white_space',
+   ebnf_rule_list => A(L(PF(sub{$_[0]->{parse_hash}->{max_position} = 0;
+    return 1, undef, 0})), 'some_white_space',
     M(A(O('rule','failed_rule'),'some_white_space')),
     E(sub {
         my $parse_hash = $_[3];
@@ -87,10 +106,18 @@ my %ebnf_rules = (
          return {rule_name => $_[0]->{rule_name},
           rule_definition => $_[0]->{rule_def}}})),
    real_white_space => A(qr/\s/, 'some_white_space'),
-   some_white_space => O(
+   some_white_space => A(L(PF(
+    sub {my $parameters = shift;
+      my $cv = $parameters->{current_position};
+      my $ph = $parameters->{parse_hash};
+      if ($ph->{max_position} < $cv) {
+        $ph->{max_position} = $cv;
+      }
+      return 1, undef, $cv;
+    })), O(
     A(qr/\s*\#/, 'comment', 'some_white_space'),
     qr/\s*/,
-   ),
+   )),
    rule_def =>
     O(
      A(qr/\(/, 'some_white_space', 'the_rule', 'some_white_space', qr/\)/,
@@ -120,12 +147,31 @@ my %ebnf_rules = (
          return $rule_def})),
    the_rule => O('leaf', 'quote', 'pf_pb', 'multiple', 'optional', 'and', 'or'),
    comment => qr/[^\n]*/,
-   failed_rule => A(qr/[^;]*\;/,
+   failed_rule => A(
+    L(PF(sub {$_[0]->{parent_node}->{error_position} =
+     $_[0]->{parse_hash}->{max_position};
+     my $new_position = $_[0]->{current_position};
+     if ($new_position < $_[0]->{parse_hash}->{max_position}) {
+       $new_position = $_[0]->{parse_hash}->{max_position};
+     }
+     return 1, undef, $_[0]->{current_position};})),
+    qr/[^;]*\;/,
     E(sub {my (undef, $parameters) = @_;
       my $text = $parameters->{parse_this_ref};
-      my $pos = $parameters->{current_value};
+      my $pos = $parameters->{current_node}->{error_position} || 0;
       my ($line, $position) = LOCATION($text, $pos);
-      return "Error at line $line";
+      my $before_length = 10;
+      my $before_start = $pos - 10;
+      if ($pos < 10) {
+        $before_length = $pos;
+        $before_start = 0;
+      }
+      my $before = substr($$text, $before_start, $before_length);
+      $before =~ s/.*\s(.+)/$1/;
+      my $after = substr($$text, $pos, 10);
+      $after =~ s/(.+?)\s(.*)/$1/;
+      #print STDERR "Error at line $line tab stop $position near '$before".$after."'\n";
+      return "Error at line $line tab stop $position near '$before".$after."'";
      })),
    and => A( 'element' ,
      M(A('real_white_space', 'element')),
@@ -140,9 +186,9 @@ my %ebnf_rules = (
    sub_element => O('rule_name', 'sub_rule',
     'optional_sub_rule',
     'multiple_sub_rule', 'leaf_sub_rule', 'pf_pb_subrule', 'quote_sub_rule',
-    'use_parse_match'),
-   use_parse_match => L(qr/\=PM/,
-    E(sub {return USE_PARSE_MATCH()})),
+    'use_string_match'),
+   use_string_match => L(qr/\=SM/,
+    E(sub {return USE_STRING_MATCH()})),
    optional_sub_rule => A( qr/\[/, 'some_white_space',
      'rule_def', 'some_white_space', qr/\]/i,
     E(sub {
@@ -214,7 +260,7 @@ my %ebnf_rules = (
    leaf_info => L(PF(
     sub {my $parameters = shift;
       my $in_ref = $parameters->{parse_this_ref};
-      my $pos = $parameters->{current_value};
+      my $pos = $parameters->{current_position};
       my $previous = substr($$in_ref, $pos-1, 1);
       pos $$in_ref = $pos;
       if ($$in_ref =~ /\G([^$previous]+$previous)/) {
@@ -273,7 +319,7 @@ my %ebnf_rules = (
    sub_routine => L(PARSE_FORWARD(
     sub {my $parameters = shift;
       my $in_ref = $parameters->{parse_this_ref};
-      my $pos = $parameters->{current_value};
+      my $pos = $parameters->{current_position};
       my $previous = substr($$in_ref, $pos-1, 1);
       my $previous2 = substr($$in_ref, $pos-2, 1);
       pos $$in_ref = $pos;
@@ -364,6 +410,19 @@ Parse::Stallion::EBNF - Output/Input parser in Extended Backus Naur Form.
 
 Given a parser from Parse::Stallion, creates a string that is
 the parser's grammar in EBNF.
+
+If LEAF_DISPLAY is passed in as a parameter to a LEAF rule, that
+is also part of the output of a leaf node.  This can be useful, for instance,
+to display a description of the code of a PARSE_FORWARD routine.
+
+The following are appended to rules that have them defined:
+
+        -MATCH_MIN_FIRST-
+        -EVALUATION-
+        -UNEVALUATION-
+        -USE_STRING_MATCH-
+        -MATCH_ONCE-
+        -RULE_INFO-
 
 =head2 Input
 
@@ -512,6 +571,7 @@ Evaluation is only done after parsing unlike the option of during parsing
 found in Parse::Stallion.
 
 =head3 PARSE_MATCH
+xyzzy, change this section
 
 By putting =PM within a rule (or subrule), the parse_match is used
 instead of the returned or generated values.

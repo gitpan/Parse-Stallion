@@ -11,7 +11,7 @@ my %dog_rules = (
  no_cat => L(PF(
    sub{my $parameters = shift;
      my $string = ${$parameters->{parse_this_ref}};
-     my $cv = $parameters->{current_value};
+     my $cv = $parameters->{current_position};
      if ($string =~ /cat/) {
         return (0, undef);
      }

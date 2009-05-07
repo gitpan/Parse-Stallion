@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #Copyright 2007-9 Arthur S Goldstein
-use Test::More tests => 32;
+use Test::More tests => 31;
 BEGIN { use_ok('Parse::Stallion') };
 #use Data::Dumper;
 
@@ -162,7 +162,7 @@ $x = $pe_parser->parse_and_evaluate("a,bc middle de,f", {parse_info=>$result={},
 
 my @trace;
 foreach my $tr (@pt) {
-  push @trace, $tr->{rule_name}, $tr->{value};
+  push @trace, $tr->{rule_name}, $tr->{position};
 }
 #use Data::Dumper;print STDERR "pt is ".Dumper($result->{parse_trace})."\n";
 #use Data::Dumper;print STDERR "trace is ".Dumper(\@trace)."\n";
@@ -317,11 +317,11 @@ my %x_test_rules = (
 
  char => L(qr/./, E(sub {my ($leaf, $parameters) = @_;
    my $object_ref = $parameters->{parse_this_ref};
-   my $position = $parameters->{current_value};
+   my $position = $parameters->{current_position};
    pos $$object_ref = $position;
    if (!($$object_ref =~ /\GX\z/g)) {
      return (undef, 1)}
-   return $leaf;})),
+   return;})),
 
 );
 
@@ -339,25 +339,24 @@ $x
  = $x_test_parser->parse_and_evaluate("aY", {parse_info=>$result={}});
 is ($result->{parse_succeeded}, 0, 'look ahead on x not to parse');
 
-my %bad_and = (
-  start => AND(qr/a/, PF(sub {return (1, undef, $_[0]->{current_value})}))
-);
+#my %bad_and = (
+#  start => AND(qr/a/, PF(sub {return (1, undef, $_[0]->{current_position})}))
+#);
 
-eval {my $bad_and_parser = new Parse::Stallion(\%bad_and);};
-like ($@, qr/Parse forward in rule/, 'parse forward not in leaf');
+#eval {my $bad_and_parser = new Parse::Stallion(\%bad_and);};
+#like ($@, qr/Parse forward in rule/, 'parse forward not in leaf');
 
 my %two_pf_and = (
   start => AND(qr/a/,
     L(PF(sub {my $parameters = shift;
-     my $node_hash = $parameters->{node_hash};
-     my $current_value = $parameters->{current_value};
-     $node_hash->{x} = 2;
-     return 1, undef, $current_value;
+     my $current_position = $parameters->{current_position};
+     $parameters->{parent_node}->{x} = 2;
+     return 1, undef, $current_position;
     })),
     {f => L(PF(sub {my $parameters = shift;
-     my $node_hash = $parameters->{node_hash};
-     my $current_value = $parameters->{current_value};
-     return 1, $node_hash->{x}+1, $current_value;
+     my $current_position = $parameters->{current_position};
+     return 1, $parameters->{parent_node}->{x}+1,
+      $current_position;
     }))},
     E(sub {return $_[0]->{f}}),
     ),
@@ -374,12 +373,10 @@ our $latest_parse_hash;
 sub increment_hashes {
 #use Data::Dumper;print STDERR "ihp ".Dumper(\@_)."\n";
   my $parameters = shift;
-  my $current_value = $parameters->{current_value};
-  my $node_hash = $parameters->{node_hash};
-  my $parse_hash = $parameters->{parse_hash};
-  $latest_node_hash = ++$node_hash->{x};
-  $latest_parse_hash = ++$parse_hash->{x};
-  return 1, undef, $current_value;
+  my $current_position = $parameters->{current_position};
+  $latest_node_hash = ++$parameters->{parent_node}->{x};
+  $latest_parse_hash = ++$parameters->{x};
+  return 1, undef, $current_position;
 }
 
 my %check_hashes = (
@@ -397,7 +394,7 @@ is ($latest_node_hash, 3, 'check hashes node');
 is ($latest_parse_hash, 4, 'check hashes parse');
 
 my %bad_leaf = (
-  start => L(qr/a/, PF(sub {return (1, undef, $_[0]->{current_value})}),
+  start => L(qr/a/, PF(sub {return (1, undef, $_[0]->{current_position})}),
    PF(sub {return 1}))
 );
 
@@ -405,11 +402,12 @@ eval {my $bad_leaf_parser = new Parse::Stallion(\%bad_leaf);};
 like ($@, qr/Rule start has more than one/, '2 parse forwards in leaf');
 
 our $stored_parameters;
+our $stored_node;
 my %eval_arg_rules = (
   start => A(qr/./, qr/./, E(
    sub {
       $stored_parameters = \@_;
-#use Data::Dumper;print STDERR Dumper(\@_)."\n";
+      $stored_node = $stored_parameters->[1]->{current_node};
     }
    ))
 );
@@ -418,7 +416,15 @@ my $eval_arg_parser = new Parse::Stallion(\%eval_arg_rules);
 
 $result = $eval_arg_parser->parse_and_evaluate('ab');
 
-is_deeply($stored_parameters,
+$stored_parameters->[1]->{current_node} = $stored_node;
+#use Data::Dumper;print Dumper($stored_parameters)." st\n";
+my $check_parameters = [$stored_parameters->[0]];
+$check_parameters->[1]->{parameters} =
+ $stored_parameters->[1]->{current_node}->{__parameters};
+$check_parameters->[1]->{parse_this_ref} =
+ $stored_parameters->[1]->{parse_this_ref};
+
+is_deeply($check_parameters,
 [                           
           {
             '' => [
@@ -428,11 +434,7 @@ is_deeply($stored_parameters,
           },
           {
             'parameters' => {'' => ['a','b']},
-            'node_parse_match' => 'ab',
-            'current_value' => 0,
-            'node_hash' => {},
-            'parse_this_ref' => \'ab',
-            'parse_hash' => {}
+            'parse_this_ref' => \'ab'
           }
         ]
 , 'params to eval');
@@ -441,17 +443,26 @@ my %evals_arg_rules = (
   start => A(qr/./, qr/./, E(
    sub {
       $stored_parameters = \@_;
+      $stored_node = $stored_parameters->[1]->{current_node};
 #use Data::Dumper;print STDERR Dumper(\@_)."\n";
     }
-   ), USE_PARSE_MATCH)
+   ), USE_STRING_MATCH)
 );
 
 my $evals_arg_parser = new Parse::Stallion(\%evals_arg_rules);
 
 $result = $evals_arg_parser->parse_and_evaluate('ab');
 
+$stored_parameters->[1]->{current_node} = $stored_node;
+$check_parameters = [$stored_parameters->[0]];
+$check_parameters->[1]->{parameters} =
+ $stored_parameters->[1]->{current_node}->{__parameters};
+$check_parameters->[1]->{parse_this_ref} =
+ $stored_parameters->[1]->{parse_this_ref};
+
+
 is_deeply(
-$stored_parameters,
+$check_parameters,
 [
           'ab',
           {
@@ -461,11 +472,7 @@ $stored_parameters,
                                       'b'
                                     ]
                             },
-            'node_parse_match' => 'ab',
-            'current_value' => 0,
-            'node_hash' => {},
             'parse_this_ref' => \'ab',
-            'parse_hash' => {}
           }
         ]
 , 'params to evals');
@@ -476,14 +483,14 @@ my %pf_arg_rules = (
   start => A(qr/./,
    L(PF(
    sub {
-      $_[0]->{node_hash}->{xx} = 1;
-      return (1, 'nn', $_[0]->{current_value});
+      $_[0]->{parent_node}->{xx} = 1;
+      return (1, 'nn', $_[0]->{current_position});
     }
    )),
    L(PF(
    sub {
 #use Data::Dumper;print STDERR Dumper(\@_)." pf \n";
-      return (1, 'mmm', $_[0]->{current_value});
+      return (1, 'mmm', $_[0]->{current_position});
     }
    ),
    PB(
@@ -495,7 +502,7 @@ my %pf_arg_rules = (
    L(PF(
    sub {
 #use Data::Dumper;print STDERR Dumper(\@_)." pf2 \n";
-      return (1, ['www'], $_[0]->{current_value});
+      return (1, ['www'], $_[0]->{current_position});
     }
    ),
    PB(
@@ -507,61 +514,42 @@ my %pf_arg_rules = (
    L(PF(
    sub {
       $pf_stored_parameters = \@_;
+      delete $pf_stored_parameters->[0]->{parser};
+      delete $pf_stored_parameters->[0]->{parent_node};
+      delete $pf_stored_parameters->[0]->{current_node};
+      delete $pf_stored_parameters->[0]->{__blocked};
+      delete $pf_stored_parameters->[0]->{parse_stallion};
 #use Data::Dumper;print STDERR Dumper(\@_)." pf3 \n";
 is_deeply($pf_stored_parameters,
 [
           {
-            'parameters' => {
-                              '' => [
-                                      'a',
-                                      'nn',
-                                      'mmm',
-                                      [
-                                        'www'
-                                      ]
-                                    ]
-                            },
-            'leaf_rule_info' => {},
-            'node_parse_match' => 'annmmm',
-            'current_value' => 1,
-            'node_hash' => {
-                             'xx' => 1
-                           },
-            'parse_this_ref' => \'ab',
-            'parse_hash' => {}
+            'rule_info' => undef,
+            'rule_name' => 'start__XZ__5',
+            'current_position' => 1,
+            'parse_this_ref' => \'ab'
           }
         ]
 , 'parse forward parameters with eval');
-      return (1, 'uuu', $_[0]->{current_value});
+      return (1, 'uuu', $_[0]->{current_position});
     }
    ),
    PB(
    sub {
       $pb_stored_parameters = \@_;
+      delete $pb_stored_parameters->[0]->{parser};
+      delete $pb_stored_parameters->[0]->{parent_node};
+      delete $pb_stored_parameters->[0]->{current_node};
+      delete $pf_stored_parameters->[0]->{__blocked};
+      delete $pf_stored_parameters->[0]->{parse_stallion};
 #use Data::Dumper;print STDERR Dumper(\@_)." pb3 \n";
 is_deeply($pb_stored_parameters,
 [
           {
-            'node_hash' => {
-                             'xx' => 1
-                           },
-            'match' => 'uuu',
+            'rule_info' => undef,
             'parse_this_ref' => \'ab',
-            'parse_hash' => {},
-            'parameters' => {
-                              '' => [
-                                      'a',
-                                      'nn',
-                                      'mmm',
-                                      [
-                                        'www'
-                                      ]
-                                    ]
-                            },
-            'leaf_rule_info' => undef,
-            'node_parse_match' => 'annmmm',
-            'current_value' => 1,
-            'value_when_entered' => 1
+            'rule_name' => 'start__XZ__5',
+            'parse_match' => 'uuu',
+            'current_position' => 1,
           }
         ]
 , 'parse backtrack parameters with eval');

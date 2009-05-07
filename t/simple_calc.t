@@ -1,6 +1,6 @@
 #!/usr/bin/perl
-#Copyright 2007-8 Arthur S Goldstein
-use Test::More tests => 9;
+#Copyright 2007-9 Arthur S Goldstein
+use Test::More tests => 10;
 BEGIN { use_ok('Parse::Stallion') };
 
 my %calculator_rules = (
@@ -125,16 +125,86 @@ use_ok('Parse::Stallion::EBNF');
 my $ebnf = ebnf Parse::Stallion::EBNF($short_calculator_parser);
 
 is ($ebnf,
-'start_rule = expression ;
-expression = term , expression__XZ__1 ;
-term = number , term__XZ__1 ;
+'start_rule = expression -EVALUATION-  ;
+expression = term , expression__XZ__1 -EVALUATION-  ;
+term = number , term__XZ__1 -EVALUATION-  ;
 expression__XZ__1 = { expression__XZ__2 } ;
-number = (?-xism:\s*[+\-]?(\d+(\.\d*)?|\.\d+)\s*) ;
+number = (?-xism:\s*[+\-]?(\d+(\.\d*)?|\.\d+)\s*) -EVALUATION-  ;
 term__XZ__1 = { term__XZ__2 } ;
 expression__XZ__2 = plus_or_minus , term ;
 term__XZ__2 = times_or_divide , number ;
 plus_or_minus = (?-xism:\s*[\-+]\s*) ;
 times_or_divide = (?-xism:\s*[*/]\s*) ;
 ', "ebnf test");
+
+my %calculator_with_end_rules = (
+ start_rule =>
+   AND('expression', qr/\s*\;\s*/,
+   E(sub {
+#print STDERR "final expression is ".$_[0]->{expression}."\n";
+return $_[0]->{expression}}),
+  ),
+ expression => AND(
+   'term', 
+    MULTIPLE(AND('plus_or_minus', 'term')),
+   E(sub {my $to_combine = $_[0]->{term};
+#use Data::Dumper; print STDERR "p and e params are ".Dumper(\@_);
+    my $plus_or_minus = $_[0]->{plus_or_minus};
+    my $value = $to_combine->[0];
+    for my $i (1..$#{$to_combine}) {
+      if ($plus_or_minus->[$i-1] eq '+') {
+        $value += $to_combine->[$i];
+      }
+      else {
+        $value -= $to_combine->[$i];
+      }
+    }
+    return $value;
+   }),
+  ),
+ term => AND(
+   'number', 
+    M(AND('times_or_divide', 'number')),
+    E(sub {my $to_combine = $_[0]->{number};
+#use Data::Dumper;print STDERR "terms to term are ".Dumper(\@_)."\n";
+    my $times_or_divide = $_[0]->{times_or_divide};
+    my $value = $to_combine->[0];
+    for my $i (1..$#{$to_combine}) {
+      if ($times_or_divide->[$i-1] eq '*') {
+        $value *= $to_combine->[$i];
+      }
+      else {
+        $value /= $to_combine->[$i]; #does not check for zero
+      }
+    }
+#print STDERR "Term returning $value\n";
+    return $value;
+   })
+ ),
+ number => LEAF(qr/\s*[+\-]?(\d+(\.\d*)?|\.\d+)\s*/,
+   E(sub{ return 0 + $_[0]})),
+ plus_or_minus => LEAF(qr/\s*[\-+]\s*/),
+ times_or_divide => LEAF(qr/\s*[*\/]\s*/)
+);
+
+my $calculator_end_parser = new Parse::Stallion(\%calculator_with_end_rules,
+ {need_not_match_whole_string => 1});
+
+my $pi={final_position => 0};
+
+my $string = '3*9;2;432+332;9-3;';
+
+my $i;
+my @results = ();
+while (($pi->{final_position} != length($string)) && $i++ < 10 ) {
+  push @results, $calculator_end_parser->parse_and_evaluate($string,
+   {parse_info => $pi, start_position => $pi->{final_position}});
+}
+
+
+#use Data::Dumper;print "results is ".Dumper(\@results)."\n";
+#use Data::Dumper;print "pi is ".Dumper($pi)."\n";
+is_deeply(\@results, [27, 2, 764, 6], 'loop with need not match whole string');
+
 
 print "\nAll done\n";

@@ -33,10 +33,13 @@ t/parser_within_parser.t
 t/parsexml.t
 t/parsing_evaluation.t
 t/program.t
+t/rd.t
+t/rdbasics.t
 t/simp.t
 t/simple_calc.t
 t/space_in_eval.t
 lib/Parse/Stallion.pm
 lib/Parse/Stallion/CSV.pm
 lib/Parse/Stallion/EBNF.pm
+lib/Parse/Stallion/RD.pm
 META.yml                                 Module meta-data (added by MakeMaker)

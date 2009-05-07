@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-#Copyright 2007-8 Arthur S Goldstein
+#Copyright 2007-9 Arthur S Goldstein
 use Parse::Stallion;
 
 my %calculator_rules = (
@@ -137,7 +137,7 @@ my $calculator_stallion = new Parse::Stallion(
    sub {
     my $parameters = shift;
     my $input_string_ref = $parameters->{parse_this_ref};
-    my $rule_definition = $parameters->{leaf_rule_info};
+    my $rule_definition = $parameters->{rule_info}->{$parameters->{rule_name}};
     $pf_count=1;
     my $match_rule = $rule_definition->{nsl_regex_match} ||
      $rule_definition->{leaf} ||
@@ -159,17 +159,17 @@ my $calculator_stallion = new Parse::Stallion(
    sub {
     my $parameters = shift;
     my $input_string_ref = $parameters->{parse_this_ref};
-    my $stored_value = $parameters->{match};
+    my $stored_value = $parameters->{parse_match};
     $pb_count=1;
     if (defined $stored_value) {
       $$input_string_ref = $stored_value.$$input_string_ref;
     }
    },
-  initial_value => sub {
+  initial_position_routine => sub {
     my $string_ref = shift;
     return 0 - length($$string_ref);
   },
-  final_value => sub {
+  final_position_routine => sub {
     return 0;
   }
 });
@@ -197,7 +197,7 @@ $x =
   trace => 1});
 
 print "Result is $x should be undef\n";
-print "Parse succeded is ".$result->{parse_succeeded}." should be 0\n";
+print "Parse succeeded is ".$result->{parse_succeeded}." should be 0\n";
 
 print "\nAll done\n";
 
