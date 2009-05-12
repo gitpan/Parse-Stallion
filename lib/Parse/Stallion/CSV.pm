@@ -8,6 +8,7 @@ use warnings;
 use Parse::Stallion;
 #use Data::Dumper;
 
+our $VERSION='0.5';
 #Copied somewhat from rfc1480
 # see for reference: http://tools.ietf.org/html/rfc4180
 

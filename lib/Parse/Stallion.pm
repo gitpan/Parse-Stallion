@@ -536,7 +536,7 @@ sub parse {
 
 package Parse::Stallion;
 require Exporter;
-our $VERSION = '0.80';
+our $VERSION = '0.81';
 our @ISA = qw(Exporter);
 our @EXPORT =
  qw(A AND O OR LEAF L MATCH_ONCE M MULTIPLE OPTIONAL ZERO_OR_ONE Z

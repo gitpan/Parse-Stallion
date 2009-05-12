@@ -11,6 +11,26 @@
 
 BEGIN { $| = 1; print "1..8\n"; }
 END {print "not ok 1\n" unless $loaded;}
+
+eval 'use Parse::RecDescent';
+my $skip = $@;
+eval 'use Text::Balanced';
+$skip .= $@;
+
+#$skip = 1;
+if ($skip) {
+print "ok 1\n";
+print "ok 2\n";
+print "ok 3\n";
+print "ok 4\n";
+print "ok 5\n";
+print "ok 6\n";
+print "ok 7\n";
+print "ok 8\n";
+$loaded = 1;
+$skip = 8;
+}
+else {
 use Parse::Stallion::RD;
 $loaded = 1;
 print "ok 1\n";
@@ -122,3 +142,4 @@ $res = $parser_B->test1("literal string");
 ok($res, "literal");
 
 #################################################################
+}

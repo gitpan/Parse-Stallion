@@ -5,6 +5,7 @@ use Carp;
 use strict;
 use warnings;
 use Parse::Stallion;
+our $VERSION='0.5';
 
 sub ebnf {
   shift;

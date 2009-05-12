@@ -36,8 +36,7 @@ use strict;
 use warnings;
 use Parse::Stallion;
 use Text::Balanced qw (extract_codeblock);
-our $VERSION='0.2';
-our $__mct;
+our $VERSION='0.3';
 our %__not_any_deferred;
 our $skip = qr/\s*/;
 our $__default_skip;
@@ -55,6 +54,14 @@ our $__previous_position;
 our $__parse_this_ref;
 our $__max_steps;
 our $__rule_info;
+our $__current_package_number = 0;
+our $__current_package_name;
+our $__sub_count = 0;
+our @__package_list;
+our $__package_text;
+our %__package_temp_names;
+our %__package_subs;
+our @__package_sub_names;
 tie our $thisline, "Parse::Stallion::RD::Thisline";
 tie our $text, "Parse::Stallion::RD::Text";
 
@@ -121,15 +128,15 @@ sub compute_node_value {
   return $item_value;
 }
 
-my $init1a =<<'EOM';
-sub {
-EOM
-my $init2 =<<'EOM';
-  ;
-  return sub {
+sub mctr {
   my $code = shift;
   my $__current_rule = shift;
-  my $sub_text = 'sub {
+#  my $safe_code = $code;
+#  $safe_code =~ s/\'//g;
+#  $safe_code =~ s/\"//g;
+#  $safe_code =~ s/\$//g;
+  my $sub_text = "
+    sub sub".$__sub_count.' {
 #delete $_[0]->{parser};use Data::Dumper;print  "actode in ".Dumper(\@_)."\n";
           my $in = $_[0]->{parent_node};
           my $__current_position = $_[0]->{current_position};
@@ -145,7 +152,7 @@ my $init2 =<<'EOM';
             my $node_with_value = $in->{children}->[$child_number];
             my $item_name = $node_with_value->{alias} ||
              $__rule_info->{$node_with_value->{name}}->{rd_name} || "";
-            my $item_value = compute_node_value($node_with_value);
+            my $item_value = Parse::Stallion::RD::compute_node_value($node_with_value);
             $child_number++;
             if ($item_name ne "") {
               push @item, $item_value;
@@ -162,16 +169,24 @@ my $init2 =<<'EOM';
             return 1, $match, $__updated_position;
           }
           return 1, $match;}';
-  my $sub = eval $sub_text;
-    if ($@) {croak  "Error is $@\n"};
-    my $i = $__mct; #comment out this line and parse test fails.
-    $i = '';
+#print "subtext is $sub_text\n";
+       push @__package_list, $sub_text;
+       sub k{my $t; return sub {$t}}; #force perl to generate different subs
+       my $return_sub = k;
+#print "return sub is $return_sub\n";
+       $__package_temp_names{$return_sub} = 
+        $__current_package_name.'::sub'.$__sub_count;
+#       eval $sub_text;
+#    if ($@) {print "err $@";croak  "Error is $@\n"};
+#       my $mcsub;
+#        eval "\$mcsub = \\\&{".$__current_package_name.'::sub'.$__sub_count."}";
+#    if ($@) {print "krr $@";croak  "Error is $@\n"};
+    $__sub_count++;
+#    my $i = $__mct; #comment out this line and parse test fails.
+#    $i = '';
 #print "mct $__mct Error is $@\n";
-  return $sub;
- }
+  return $return_sub;
 }
-EOM
-our $__mctr = eval $init1a.$init2;
 
 my $move_to_parent = L(PF(
  sub {
@@ -188,7 +203,6 @@ my $move_to_parent = L(PF(
 our $__counts = [];
 our $__current_rule_count = 0;
 #print  "set orig\n";
-our $__origmct = &{$__mctr}();
 #print  "done set orig\n";
 
 my $__start_rule = L(PF(
@@ -293,7 +307,7 @@ my %rd_rules = (
        else {
          $code = 'undef';
        }
-       my $sub = &{$__mct}($code, $__current_rule);
+       my $sub = mctr($code, $__current_rule);
        my $count = ++$__counts->[0]->{directive}->{$__current_rule};
        my $latest_name = '__DIRECTIVE'.$count.'__';
 #print "error is $@\n";
@@ -414,14 +428,17 @@ my %rd_rules = (
       my $count = ++$__counts->[0]->{directives}->{$__current_rule};
       my $latest_name = '__DIRECTIVE'.$count.'__';
       my $cr = $__current_rule;
+      my $sub = mctr($code, $cr);
+      push @__package_sub_names, $sub;
       my $leaf = {$latest_name => L(PF(sub {
 #use Data::Dumper;print "defer params are ".Dumper(\@_);
-        my $sub = &{$__mct}($code, $cr);
         my $parent_node = $_[0]->{parent_node};
         my $stored_params = {current_position => $_[0]->{current_position},
          parent_node => $parent_node,
          parse_this_ref => $_[0]->{parse_this_ref}};
-        push @__delay, {sub => $sub, parameters => $stored_params};
+#print "storing for sub $sub\n";
+        push @__delay, {sub => $__package_subs{$sub},
+          parameters => $stored_params};
          return 1, scalar(@__delay);}
         ),
         PB(sub {
@@ -465,13 +482,18 @@ my %rd_rules = (
          $the_code .= $code.";\n";
        }
        if ($the_code) {
-         my $sub = $init1a.$the_code.$init2;
+          $__package_text .= "$the_code\n\n";
+#         my $np = "package $__current_package_name;
+#              $the_code";
+#print "np is $np\n";
+#          eval $np;
+#         my $sub = $init1a.$the_code.$init2;
+#         $sub = $the_code.';'.$init1a.$init2;
 #print "iasub is $sub\n";
-         my $ns = eval $sub;
-#print "mct is $mct\n";
-         $__mct = &{$ns}();
+#         my $ns = eval $sub;
+#print "mct is $__mct\n";
+#         $__mct = &{$ns}();
 #print "mct now is $__mct\n";
-#print "iaerror is $@\n";
        }
      })),
    action => L(PF(
@@ -488,7 +510,7 @@ my %rd_rules = (
     }),
      E( sub {
        my $code = shift;
-       my $sub = &{$__mct}($code, $__current_rule);
+       my $sub = mctr($code, $__current_rule);
        my $count = ++$__counts->[0]->{actions}->{$__current_rule};
        my $latest_name = '__ACTION'.$count.'__';
 #print "error is $@\n";
@@ -647,7 +669,7 @@ my %rd_rules = (
          $__updated_position = pos $$__parse_this_ref;
          $previous;
       ';
-       my $sub = &{$__mct}($code, $__current_rule);
+       my $sub = mctr($code, $__current_rule);
         my $subb = sub {
 #           my $current_node = $_[0]->{current_node};
            my $parse_match = $_[0]->{parse_match};
@@ -734,6 +756,7 @@ my %rd_rules = (
       my $et = $token;
       substr($token, 1, 0) = '\G';
       my $regex = eval 'qr'.$token;
+      if ($@) {print "regex is $@"};
        my $sub = sub {
           my $current_position = $_[0]->{current_position};
           my $inref = $_[0]->{parse_this_ref};
@@ -760,6 +783,7 @@ my %rd_rules = (
       my $et = $token;
       substr($token, 1, 0) = '\G';
       my $regex = eval 'qr'.$token;
+      if ($@) {print "ReGex is $@"};
        my $sub = sub {
           my $current_position = $_[0]->{current_position};
           my $inref = $_[0]->{parse_this_ref};
@@ -795,7 +819,7 @@ my %rd_rules = (
           }
           $result;
        ';
-       my $sub = &{$__mct}($code, $__current_rule);
+       my $sub = mctr($code, $__current_rule);
        my $count = ++$__counts->[0]->{strings}->{$__current_rule};
        my $latest_name = '__STRING'.$count.'__';
 #print  "dqerror is $@\n";
@@ -954,6 +978,9 @@ sub __rd_new {
   my @pt;
   my $parse_info = {};
   my $rules_out;
+  $__current_package_name = 'rd_package_'.$__current_package_number++;
+  $__package_text = "package $__current_package_name;\n";
+  @__package_list = ();
   @other_rules = ();
   $any_deferred = 0;
   if ($trace) {
@@ -963,6 +990,9 @@ sub __rd_new {
        }
        )};
       use Data::Dumper;print  " pt ".Dumper(\@pt);
+    if ($@) {
+      use Data::Dumper;print  "tracefailurefailure pt ".Dumper(\@pt);
+    }
   }
   else {
     $rules_out = eval {$rd_parser->parse_and_evaluate(
@@ -1003,7 +1033,7 @@ sub __rd_new {
       if ($::RD_AUTOACTION &&
 #       !$other_rule{$rule} &&
        ($production->[$#{$production}]->{item_type} ne 'action')) {
-        my $sub = &{$__mct}($::RD_AUTOACTION, $rule);
+        my $sub = mctr($::RD_AUTOACTION, $rule);
         my $count = ++$__counts->[0]->{actions}->{$rule};
         my $latest_name = '__ACTION'.$count.'__';
         push @{$production}, {item_type => 'action', name => $latest_name,
@@ -1076,7 +1106,34 @@ sub __rd_new {
      traversal_only => 1, fast_move_back => 0,
      unreachable_rules_allowed => 1}
   )};
-  if ($@) {croak $@}
+  if ($@) {print "errff $@";croak $@}
+  $__package_text .= join("", @__package_list);
+#print "pt is $__package_text\n";
+  eval $__package_text; #for lexicals in the name space to work
+  if ($@) {print "package text error $@"; croak $@}
+  my $parser_rules = $new_parser->{rule};
+  foreach my $parse_rule_key (keys %{$parser_rules}) {
+    my $parse_rule = $parser_rules->{$parse_rule_key};
+#use Data::Dumper;print "looking at ".Dumper($parse_rule)."\n";
+    if (defined $parse_rule->{parse_forward}) {
+      if ($__package_temp_names{$parse_rule->{parse_forward}}) {
+        my $new_sub = "\\\&".
+         $__package_temp_names{$parse_rule->{parse_forward}};
+#print "new sub is $new_sub\n";
+        $parse_rule->{parse_forward} =
+         eval $new_sub;
+         if ($@) {print "error on ptm $@";croak $@};
+#print "updated pf\n";
+      }
+    }
+  }
+#print "count delay\n";
+  while (my $subname = pop @__package_sub_names) {
+    my $new_sub = "\\\&".  $__package_temp_names{$subname};
+#print "nsp is $new_sub\n";
+    $__package_subs{$subname} = eval $new_sub;
+    if ($@) {print "deneror on ptm $@";croak $@};
+  }
 #use Parse::Stallion::EBNF;
 #print ebnf Parse::Stallion::EBNF($new_parser)."\n";
   if ($any_deferred) {
@@ -1096,11 +1153,7 @@ sub new {
   my $trace = shift;
   my $class = ref($type) || $type;
   my $parsing_info = {};
-  $__mct = $__origmct;
   $parsing_info->{parser} = __rd_new($type, $grammar, $trace);
-#print  "mct set\n";
-  $parsing_info->{mct} = $__mct;
-#print  "mct2 set\n";
   return bless $parsing_info, $class;
 }
 
@@ -1126,11 +1179,9 @@ sub AUTOLOAD {
   my $start_rule = $AUTOLOAD;
 #print "start rule is $start_rule\n";
 #print  "found mct\n";
-  $__mct = $self->{mct};
   @__delay = ();
   $__rule_has_commit = {};
   $__rule_has_error = {};
-#print  "found mct2\n";
   $start_rule =~ s/.*:://;
   $commit = 0;
   my $previous_parser = $__thisparser;
@@ -1177,6 +1228,7 @@ use Data::Dumper; print  "bigtracept ".Dumper(\@pt)."\n";
 #use Data::Dumper; print  "pt ".Dumper(\@pt)."\n";
   $skip = $__default_skip;
   if ($@) {
+print "em $@\n";
 #use Data::Dumper; print  "pt ".Dumper(\@pt)."\n";
 croak $@}
 #use Data::Dumper;print  "resulsts are ".Dumper($results)."\n";

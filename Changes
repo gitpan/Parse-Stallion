@@ -1,5 +1,9 @@
 Revision history for Perl extension Parse::Stallion.
 
+0.81
+    Modifications to Parse::Stallion::RD to handle namespaces differently,
+    what was done before did not work in perl 5.10 though did work in perl 5.8
+
 0.80
     MATCH_ONCE added
 
