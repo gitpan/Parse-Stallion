@@ -1,5 +1,8 @@
 Revision history for Perl extension Parse::Stallion.
 
+0.82
+    Modification of test rd.t to not fail if Text::Balanced is not present.
+
 0.81
     Modifications to Parse::Stallion::RD to handle namespaces differently,
     what was done before did not work in perl 5.10 though did work in perl 5.8

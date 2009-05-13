@@ -36,7 +36,7 @@ use strict;
 use warnings;
 use Parse::Stallion;
 use Text::Balanced qw (extract_codeblock);
-our $VERSION='0.3';
+our $VERSION='0.31';
 our %__not_any_deferred;
 our $skip = qr/\s*/;
 our $__default_skip;
@@ -1434,6 +1434,10 @@ The above cases also affect rightop's and repetition in Parse::RecDescent.
 
 
 =head2 OTHER ITEMS
+
+This module requires Text::Balanced to work but since Parse::Stallion
+does not require Text::Balanced and this is part of Parse::Stallion it
+is not part of the dependencies.
 
 One can increase $Parse::Stallion::RD::__max_steps in case one runs
 into the 'Not enough steps to do parse...' error.

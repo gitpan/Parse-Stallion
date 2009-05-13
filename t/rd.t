@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #Copyright 2009 Arthur S Goldstein
-BEGIN {$test_count = 113}
+BEGIN {$test_count = 112}
 use Test::More tests => $test_count;
 #use Devel::Profiler;
 #Test cases from http://www.adp-gmbh.ch/perl/rec_descent.html
@@ -18,13 +18,14 @@ our $rd_item_hash;
 our $rd_item_list2;
 our $rd_item_hash2;
 
-BEGIN { use_ok('Parse::Stallion::RD') };
-
 SKIP:
 {
 
+my $skip;
+eval 'use Parse::Stallion::RD';
+$skip .= $@;
 eval 'use Parse::RecDescent';
-my $skip = $@;
+$skip .= $@;
 eval 'use Text::Balanced';
 $skip .= $@;
 
