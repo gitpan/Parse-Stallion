@@ -30,7 +30,7 @@ eval 'use Text::Balanced';
 $skip .= $@;
 
 if ($skip) {skip ("Need Parse RecDescent installed with Text::Balanced",
- $test_count-1)};
+ $test_count)};
 
 use_ok('Parse::RecDescent');
 

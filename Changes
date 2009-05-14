@@ -1,5 +1,8 @@
 Revision history for Perl extension Parse::Stallion.
 
+0.83
+    Modification of test rd.t to not fail if Text::Balanced is not present.
+
 0.82
     Modification of test rd.t to not fail if Text::Balanced is not present.
 
