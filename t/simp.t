@@ -74,12 +74,7 @@ fin_exp =>
 ,
 end_of_string => qr/\z/
 ,
-number => LEAF(
-  qr/\s*[+-]?(\d+(\.\d*)?|\.\d+)\s*/,
-  E(sub{
-   return 0 + $_[0];
-  })
- )
+number => qr/\s*[+-]?(\d+(\.\d*)?|\.\d+)\s*/,
 ,
 left_parenthesis => qr/\s*\(\s*/
 ,

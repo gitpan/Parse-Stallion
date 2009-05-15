@@ -36,8 +36,7 @@ use strict;
 use warnings;
 use Parse::Stallion;
 use Text::Balanced qw (extract_codeblock);
-our $VERSION='0.31';
-our %__not_any_deferred;
+our $VERSION='0.35';
 our $skip = qr/\s*/;
 our $__default_skip;
 our @arg;
@@ -263,9 +262,6 @@ my $__check_commit = L(PF(
   }
 ), LEAF_DISPLAY('check commit'));
 
-my $match_once_sub = sub {
-  return $_[0]->{not_any_deferred};
-};
 sub __rule_def {
 return $_[0]->{the_productions}->{''};}
 sub __xrule_def {
@@ -367,7 +363,7 @@ my %rd_rules = (
          M(A($item2->{operation},
          $item3->{operation} ))
          ,RULE_INFO({rule_type => 'leftop_one'})
-         , MATCH_ONCE($match_once_sub)
+         , MATCH_ONCE()
          )};
       }
       else {
@@ -375,7 +371,7 @@ my %rd_rules = (
          M(A($item2->{operation},
          $item3->{operation}))
          ,RULE_INFO({rule_type => 'leftop_two'})
-         , MATCH_ONCE($match_once_sub))};
+         , MATCH_ONCE())};
       }
 #use Data::Dumper;print "leftope valpar ".Dumper($parameters)."\n";
 #print "nv is ".Dumper($nv)."\n";
@@ -413,7 +409,7 @@ my %rd_rules = (
       $val = {$latest_name => A(M(A($item1->{operation},
        $item2->{operation})), $item3->{operation}
        ,RULE_INFO({rule_type => $rule_type})
-      , MATCH_ONCE($match_once_sub))};
+      , MATCH_ONCE())};
 #use Data::Dumper;print "rightope valpar ".Dumper($parameters)."\n";
 #print "nv is ".Dumper($nv)."\n";
       return {name => $latest_name, operation => $val};
@@ -558,14 +554,14 @@ my %rd_rules = (
               M(A($separator->{operation}, $operation),
               $up_from-1, $up_to)
               ,RULE_INFO({ rule_type => 'straight_separator'})
-             , MATCH_ONCE($match_once_sub))};
+             , MATCH_ONCE())};
            }
            else {
              $to_return{operation} = {$to_return{name} => Z(A($operation,
               M(A($separator->{operation}, $operation),
               0, $up_to))
               ,RULE_INFO({rule_type => 'straight_z_separator'})
-             , MATCH_ONCE($match_once_sub))};
+             , MATCH_ONCE())};
            }
           }
          else {
@@ -573,7 +569,7 @@ my %rd_rules = (
            $to_return{operation} = {$to_return{name} => 
             M($operation, $up_from, $up_to
               ,RULE_INFO({rule_type => 'straight'})
-             , MATCH_ONCE($match_once_sub))};
+             , MATCH_ONCE())};
          }
        }
        else {
@@ -1081,15 +1077,15 @@ sub __rd_new {
        $first_item->{item_type} ne 'uncommit' && $not_first_production) {
         unshift @a_args, $__check_commit;
       }
-      push @o_args, A(@a_args, MATCH_ONCE($match_once_sub));
+      push @o_args, A(@a_args, MATCH_ONCE());
       $single_o_arg = A(@a_args, $move_to_parent,
-       RULE_INFO({rule_type => 'rule'}), MATCH_ONCE($match_once_sub));
+       RULE_INFO({rule_type => 'rule'}), MATCH_ONCE());
       $not_first_production = 1;
     }
     if ($#o_args > 0) {
       $rule_productions{$rule} = A($__start_rule, O(@o_args),
          $__end_rule, RULE_INFO({rule_type => 'rule'}),
-           MATCH_ONCE($match_once_sub));
+           MATCH_ONCE());
     }
     else {
       if ($single_operation && $item_count == 1 && !($other_rule{$rule})) {
@@ -1103,7 +1099,7 @@ sub __rd_new {
 #use Data::Dumper;print  "therules is ".Dumper(\%rule_productions)."\n";
   my $new_parser = eval {new Parse::Stallion(\%rule_productions,
     {separator => '.', final_position_routine => sub {return $_[1]},
-     traversal_only => 1, fast_move_back => 0,
+     traversal_only => 1, fast_move_back => !$any_deferred,
      unreachable_rules_allowed => 1}
   )};
   if ($@) {print "errff $@";croak $@}
@@ -1136,14 +1132,6 @@ sub __rd_new {
   }
 #use Parse::Stallion::EBNF;
 #print ebnf Parse::Stallion::EBNF($new_parser)."\n";
-  if ($any_deferred) {
-    $new_parser->{not_any_deferred} = 0;
-    $__not_any_deferred{$new_parser} = 0;
-  }
-  else {
-    $new_parser->{not_any_deferred} = 1;
-    $__not_any_deferred{$new_parser} = 1;
-  }
   return $new_parser;
 }
 
@@ -1195,7 +1183,7 @@ sub AUTOLOAD {
     eval {$results = $self->{parser}->parse_and_evaluate($string,
      {start_rule => $start_rule, parse_info => $pi
        ,parse_hash =>
-       {not_any_deferred => $__not_any_deferred{$self->{parser}},
+       {
         the_parser => $self->{parser}}
             ,max_steps => $__max_steps || 1000000
      , start_position => $start_position
@@ -1211,7 +1199,7 @@ use Data::Dumper; print  "bigtracept ".Dumper(\@pt)."\n";
     eval {$results = $self->{parser}->parse_and_evaluate($string,
      {start_rule => $start_rule, parse_info => $pi
        ,parse_hash =>
-       {not_any_deferred => $__not_any_deferred{$self->{parser}},
+       {
         the_parser => $self->{parser}
        }
             ,max_steps => $__max_steps || 1000000

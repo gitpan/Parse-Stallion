@@ -11,9 +11,7 @@ use Test::More tests => 2;
       EVALUATION(
        sub {return $_[0]->{number}->[0] + $_[0]->{number}->[1]})
     ),
-    number => LEAF(qr/\d+/,
-      E(sub{return 0 + $_[0];}))
-     #0 + $_[0] converts the matched string into a number
+    number => LEAF(qr/\d+/)
    );
 
    my $parser = new Parse::Stallion(\%basic_grammar);
@@ -30,7 +28,7 @@ use Test::More tests => 2;
       E(sub {return $_[0]->{number} + $_[0]->{right_number}})
     ),
     number => L(qr/\d+/,
-      EVALUATION(sub{return 0 + $_[0];}))
+      EVALUATION(sub{return $_[0];}))
    );
 
    my $parser_2 = new Parse::Stallion(

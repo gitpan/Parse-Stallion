@@ -49,7 +49,7 @@ my $calculator=<<'END';
     | ((number) S{$number}S) ;
 
  number =
-  (qr/\s*[+-]?(\d+(\.\d*)?|\.\d+)\s*/) S{return 0 + $_}S;
+  (qr/\s*[+-]?(\d+(\.\d*)?|\.\d+)\s*/) S{return $_}S;
 
  left_parenthesis = qr/\s*\(\s*/;
 

@@ -181,7 +181,7 @@ equality => L(
   ),
  xnumber => L(
    qr/[+\-]?(\d+(\.\d*)?|\.\d+)/,
-   E(sub{ my $number = 0 + $_[0];
+   E(sub{ my $number = $_[0];
      return sub {return $number} })
  ),
 );

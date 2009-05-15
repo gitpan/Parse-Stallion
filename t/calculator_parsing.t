@@ -86,7 +86,7 @@ number => LEAF(
   qr/\s*[+-]?(\d+(\.\d*)?|\.\d+)\s*/,
   EVALUATION( sub{
 #use Data::Dumper;print STDERR "to number is ".Dumper(\@_)."\n";
-   return 0 + $_[0];
+   return $_[0];
   }
  ))
 ,

@@ -406,17 +406,7 @@ sub parse {
         if ($any_match_once && !$move_back_mode
          && $rule->{$current_node_name}->{match_once}) {
 
-          my $fast;
-          if (my $sub = $rule->{$current_node_name}->{match_once_sub}) {
-            delete $parse_hash->{parent_node};
-            $parse_hash->{current_node} = $current_node;
-            $parse_hash->{current_position} = $current_position;
-            $parse_hash->{rule_name} = $current_node_name;
-            $fast = &{$sub}($parse_hash);
-            delete $parse_hash->{current_node};
-          }
-
-          if ($fast_move_back || $fast) {
+          if ($fast_move_back) {
             $remove_node = 1;
             $message .= ". Fast Move Back " if $parse_trace;
           }
@@ -485,17 +475,7 @@ sub parse {
       pop @bottom_up_left_to_right if $bottom_up;
       if ($any_match_once
        && $rule->{$current_node_name}->{match_once}) {
-        my $fast;
-        if (my $sub = $rule->{$current_node_name}->{match_once_sub}) {
-          delete $parse_hash->{parent_node};
-          $parse_hash->{current_node} = $current_node;
-          $parse_hash->{current_position} = $current_position;
-          $parse_hash->{rule_name} = $current_node_name;
-          $fast = &{$sub}($parse_hash);
-          delete $parse_hash->{current_node};
-        }
-
-        if ($fast_move_back || $fast) {
+        if ($fast_move_back) {
           $current_node = undef;
           $message .= ". Fast Move Back " if $parse_trace;
         }
@@ -536,7 +516,7 @@ sub parse {
 
 package Parse::Stallion;
 require Exporter;
-our $VERSION = '0.83';
+our $VERSION = '0.85';
 our @ISA = qw(Exporter);
 our @EXPORT =
  qw(A AND O OR LEAF L MATCH_ONCE M MULTIPLE OPTIONAL ZERO_OR_ONE Z
@@ -849,10 +829,6 @@ sub add_rule {
     }
     elsif (ref $sub_rule eq 'ARRAY' && $sub_rule->[0] eq 'MATCH_ONCE') {
       $self->{rule}->{$rule_name}->{match_once} = 1;
-      if (defined $sub_rule->[1] && (ref $sub_rule->[1] ne 'CODE')) {
-        croak ("Parameter to MATCH_ONCE must be subroutine in rule $rule_name");
-      }
-      $self->{rule}->{$rule_name}->{match_once_sub} = $sub_rule->[1];
       $self->{any_match_once} = 1;
     }
     elsif (ref $sub_rule eq 'ARRAY' && $sub_rule->[0] eq 'RULE_INFO') {
@@ -905,10 +881,14 @@ sub add_rule {
   $self->{rule}->{$rule_name}->{leaf_rule} = 0;
   $self->{rule}->{$rule_name}->{or_rule} = 0;
   $self->{rule}->{$rule_name}->{and_rule} = 0;
+  $self->{rule}->{$rule_name}->{multiple_rule} = 0;
   if ($rule_type eq 'LEAF') {
     my $leaf_info = shift @copy_of_rule;
     if (ref $leaf_info eq 'Regexp') {
       $self->{rule}->{$rule_name}->{regex_match} = $leaf_info;
+      if ('' =~ $leaf_info) { #xyzzy
+        $self->{rule}->{$rule_name}->{zero} = 1;
+      }
     }
     elsif (defined $leaf_info) {
       if (defined $self->{rule_info}->{$rule_name}) {
@@ -933,6 +913,7 @@ sub add_rule {
       $self->{rule}->{$rule_name}->{or_rule} = 1;
     }
     elsif ($rule_type eq 'MULTIPLE') {
+      $self->{rule}->{$rule_name}->{multiple_rule} = 1;
       my $min =
        $self->{rule}->{$rule_name}->{minimum_child} = shift @copy_of_rule;
       my $max =
@@ -1155,8 +1136,110 @@ sub set_up_full_rule_set {
     $start_rule .= 'x';
   }
 
+  $self->look_for_left_recursion;
   $self->{start_rule} = $start_rule;
 
+}
+
+sub look_for_left_recursion {
+  my $self = shift;
+  my %checked_rules;
+  foreach my $rule (keys %{$self->{rule}}) {
+    my $current_rule = $rule;
+    my $moving_down = 1;
+    my %active_rules;
+    my @active_rules;
+    my $previous_allows_zero = 0;
+    while (defined $current_rule) {
+#print "cr is $current_rule and md is $moving_down\n";
+#use Data::Dumper;print "ar hash ".Dumper(\%active_rules)."\n";
+#use Data::Dumper;print "ar arry ".Dumper(\@active_rules)."\n";
+      if ($moving_down) {
+        if ($active_rules{$current_rule}++) {
+          croak "Left recursion in grammar: ".
+           join(" leads to ", @active_rules, $current_rule);
+        }
+        push @active_rules, $current_rule;
+        if ($checked_rules{$current_rule}
+         || $self->{rule}->{$current_rule}->{leaf_rule}) {
+          $moving_down = 0;
+        }
+        else {
+          $active_rules{$current_rule} = 1;
+          if ($self->{rule}->{$current_rule}->{multiple_rule}) {
+            $current_rule = $self->{rule}->{$current_rule}->{subrule_name};
+          }
+          else {
+            $current_rule =
+             $self->{rule}->{$current_rule}->{subrule_list}->[0]->{name};
+          }
+        }
+      }
+      else {
+        if ($previous_allows_zero) {
+          if ($self->{rule}->{$current_rule}->{multiple_rule} ||
+           $self->{rule}->{$current_rule}->{or_rule}) {
+            $self->{rule}->{$current_rule}->{zero} = 1;
+          }
+          elsif ($self->{rule}->{$current_rule}->{and_rule} &&
+           ($active_rules{$current_rule} ==
+           $self->{rule}->{$current_rule}->{subrule_list_count})) {
+            $self->{rule}->{$current_rule}->{zero} = 1;
+          }
+          else {
+            $previous_allows_zero = 0;
+          }
+        }
+        if ($self->{rule}->{$current_rule}->{multiple_rule} ||
+         $self->{rule}->{$current_rule}->{leaf_rule} ||
+         $checked_rules{$current_rule}) {
+          delete $active_rules{$current_rule};
+#print "deleted $current_rule\n";
+          $previous_allows_zero = $self->{rule}->{$current_rule}->{zero} || 0;
+          pop @active_rules;
+          $current_rule = $active_rules[-1];
+        }
+        elsif ($active_rules{$current_rule} ==
+           $self->{rule}->{$current_rule}->{subrule_list_count}) {
+            $previous_allows_zero = $self->{rule}->{$current_rule}->{zero} || 0;
+            delete $active_rules{$current_rule};
+#print "Deleted $current_rule\n";
+            pop @active_rules;
+            $current_rule = $active_rules[-1];
+        }
+        elsif ($self->{rule}->{$current_rule}->{and_rule}) {
+          my $previous_rule =
+           $self->{rule}->{$current_rule}->{subrule_list}->
+           [$active_rules{$current_rule}-1]->{name};
+#print "cr is $current_rule and ar is ".$active_rules{$current_rule}."\n";
+#print "previous rule is $previous_rule\n";
+          if ((defined $self->{rule}->{$previous_rule}->{zero} &&
+           $self->{rule}->{$previous_rule}->{zero}) ||
+           ($self->{rule}->{$previous_rule}->{multiple_rule} &&
+           $self->{rule}->{$previous_rule}->{minimum_child} == 0)) {
+            $current_rule = 
+             $self->{rule}->{$current_rule}->{subrule_list}->
+             [$active_rules{$current_rule}++]->{name};
+            $moving_down = 1;
+#warn "reset to $current_rule\n";
+          }
+          else {
+            $previous_allows_zero = $self->{rule}->{$current_rule}->{zero} || 0;
+            delete $active_rules{$current_rule};
+#print "deLeted $current_rule\n";
+            pop @active_rules;
+            $current_rule = $active_rules[-1];
+          }
+        }
+        else {
+          $current_rule = 
+           $self->{rule}->{$current_rule}->{subrule_list}->
+           [$active_rules{$current_rule}++];
+          $moving_down = 1;
+        }
+      }
+    }
+  }
 }
 
 sub new_unevaluate_tree_node {
@@ -1394,9 +1477,7 @@ The following examples read in two unsigned integers and adds them.
       EVALUATION(
        sub {return $_[0]->{number}->[0] + $_[0]->{number}->[1]})
     ),
-    number => LEAF(qr/\d+/,
-      E(sub{return 0 + $_[0];}))
-     #0 + $_[0] converts the matched string into a number
+    number => LEAF(qr/\d+/)
    );
 
    my $parser = new Parse::Stallion(\%basic_grammar);
@@ -1411,8 +1492,7 @@ The following examples read in two unsigned integers and adds them.
       {right_number => 'number'},
       E(sub {return $_[0]->{number} + $_[0]->{right_number}})
     ),
-    number => L(qr/\d+/,
-      EVALUATION(sub{return 0 + $_[0];}))
+    number => L(qr/\d+/)
    );
 
    my $parser_2 = new Parse::Stallion(
@@ -1775,6 +1855,13 @@ is set to a negative number, there is no limit on the number of steps.
 
 =head3 "LEFT RECURSION"
 
+Parse::Stallion checks the grammar for "left recursion" and will not
+build the grammar if left recursion is detected (croaks).
+However, there are some cases which are not possible
+to detect, i.e. whether a parse forward routine will change the position
+or a case where a regexp matches but returns an empty string such
+as qr/\B/ .
+
 Parse::Stallion may encounter "left recursion"
 during parsing in which case the parsing stops and a message is 'croak'ed.
 
@@ -1785,21 +1872,21 @@ Illegal Case 1:
 
      expression => AND('expression', 'plus', 'term')
 
+Expression leads to expression leads to expression ....
+
 Illegal Case 2:
 
      rule_with_empty => AND('empty', 'rule_with_empty', 'other_rule')
      empty => qr//
 
+The second case is detected while building the grammar, regexp's are
+checked to see if they match the empty string.
+
 Illegal Case 3:
 
-     rule_with_optional => AND('nothing', 'optional_rule', 'nothing')
-     nothing => AND('empty')
-     empty => L(qr//)
-     optional_rule => OPTIONAL('some_other_rule')
-     some_other_rule => qr/x/
+     rule_with_pf => A(L(PF(sub {return 1}))', 'rule_with_pf', 'other_rule')
 
-The 3rd case will detect left recursion if optional_rule does not
-match and modify the input.
+The third case will be detected during parsing.
 
 =head2 EVALUATION
 
@@ -1845,7 +1932,7 @@ hash parameter instead of the rule name.
 =head3 Parse Hash
 
 The parse hash is a hash ref that is passed to the evaluation, unevaluation,
-parse_forward, parse_backtrack, and match_once routines.  It is the same hash
+parse_forward, and parse_backtrack routines.  It is the same hash
 ref throughout a specific parse so one can store values there to pass
 among the routines.  One can pass in a hash ref, with some preset keys,
 to be used as the parse_hash for a given parse_and_evaluate call.
@@ -1859,7 +1946,7 @@ There are several keys that are set
                # and parse_backtrack, child has been removed before call
                # to parse_backtrack; see Parse Tree Nodes
    current_node # active node in parse tree for evaluation, unevaluation,
-                # and match_once; see section Parse Tree Nodes
+                # see section Parse Tree Nodes
    parse_match # for parse_backtrack routine, match from parse_forward
    rule_name # Name of rule, may be internally generated
    rule_info # Hash of rule names which have RULE_INFO set
@@ -2008,10 +2095,7 @@ true.  If the second statement is true, the string parses.
      A(qr/there are /i,'number',L(qr/ elements in /),
       E(sub { return $_[0]->{number}; })
     ),
-   number =>
-    L(qr/\d+/,
-     E(sub { return 0 + shift; })
-   ),
+   number => qr/\d+/ ,
    list => A('number', M(A(qr/\,/}, 'number')),
      EVALUATION(sub {return $_[0]->{number}})
    ),
@@ -2196,7 +2280,7 @@ as an array, if the value is 0, it would be passed as a scalar.
     ),
     number => L(
       qr/\s*[+\-]?(\d+(\.\d*)?|\.\d+)\s*/,
-      E(sub{ return 0 + $_[0]; })
+      E(sub{ return $_[0]; })
     ),
     plus_or_minus => qr/\s*([\-+])\s*/,
     times_or_divide => qr/\s*([*\/])\s*/
@@ -2453,7 +2537,7 @@ One can make use of USE_STRING_MATCH.
 
 =head4 REMOVE NODES FROM TREE DURING PARSE
 
-This is not recommended without being very careful.  If the parse
+One need be very careful to try this.  If the parse
 is always moving forward and will never backtrack then after a node
 is evaluated, i.e. if do_parsing_in_evaluation=1, then the
 children of that node are no longer needed.  Since the evaluation
@@ -2499,6 +2583,10 @@ under the terms of the Perl Artistic License
 Please email in bug reports.
 
 =head1 TO DO AND FUTURE POSSIBLE CHANGES
+
+Fast mode.  There are checks in parsing for the parse trace, parse_backtrack,
+parse_forward, left recursion, ...  Removing these would make the parser
+less flexible/safe but faster.
 
 Please send in suggestions.
 

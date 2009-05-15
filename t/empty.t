@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #Copyright 2007-9 Arthur S Goldstein
-use Test::More tests => 12;
+use Test::More tests => 13;
 use Carp;
 BEGIN { use_ok('Parse::Stallion') };
 
@@ -10,7 +10,7 @@ my %calculator_rules = (
    E(sub {return $_[0]->{expression}})
   )
 ,
- expression => A(
+ expression => A( L(PF(sub{return 1})),
    'expression', 'plus_or_minus', 'number'
    )
 ,
@@ -21,7 +21,7 @@ end_of_string => L(
 number => L(
   qr/\s*[+-]?(\d+(\.\d*)?|\.\d+)\s*/,
   E(sub{
-   return 0 + $_[0];
+   return $_[0];
   })
  ),
 ,
@@ -51,7 +51,7 @@ my %empty_rules = (
    E(sub {return $_[0]->{expression}}),
   )
 ,
- expression => A(
+ expression => A( L(PF(sub{return 1})),
    'empty', 'expression', 'number'
    )
 ,
@@ -62,7 +62,7 @@ end_of_string => L(
 number => L(
   qr/\s*[+-]?(\d+(\.\d*)?|\.\d+)\s*/,
   E(sub{
-   return 0 + $_[0];
+   return $_[0];
   })
  )
 ,
@@ -84,6 +84,40 @@ eval { my $result = $empty_parser->parse_and_evaluate( "7+4",
 like ($@, qr/^expression duplicated at position/,'invalid grammar 2');
 #use Data::Dumper; print STDERR "pt is ".Dumper(\@pt)."\n";
 
+my %zempty_rules = (
+ start_expression => A(
+   'expression', 'end_of_string',
+   E(sub {return $_[0]->{expression}}),
+  )
+,
+ expression => A(
+   'nothing', 'expression', 'number'
+   )
+,
+end_of_string => L(
+  qr/\z/
+ ),
+,
+number => L(
+  qr/\s*[+-]?(\d+(\.\d*)?|\.\d+)\s*/,
+  E(sub{
+   return $_[0];
+  })
+ )
+,
+nothing => A('empty'),
+empty => L(
+  qr/^/
+ )
+,
+);
+
+my $zempty_parser = eval {new Parse::Stallion(
+  \%zempty_rules,
+  {start_rule => 'start_expression'
+  })};
+like ($@, qr/^Left recursion in grammar/,'invalid grammar 3');
+
 my %third_calculator_rules = (
  start_expression => A(
    'expression', 'end_of_string',
@@ -102,7 +136,7 @@ end_of_string => L(
 number => L(
   qr/\s*[+-]?(\d+(\.\d*)?|\.\d+)\s*/,
   E(sub{
-   return 0 + $_[0];
+   return $_[0];
   })
  )
 ,

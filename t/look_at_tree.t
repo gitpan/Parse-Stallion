@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #Copyright 2007-9 Arthur S Goldstein
-use Test::More tests => 10;
+use Test::More tests => 12;
 #use Data::Dumper;
 BEGIN { use_ok('Parse::Stallion') };
 
@@ -58,7 +58,7 @@ my %calculator_rules = (
  ),
  number => L(
    qr/\s*[+\-]?(\d+(\.\d*)?|\.\d+)\s*/,
-   E(sub{ return 0 + $_[0]; })
+   E(sub{ return $_[0]; })
  ),
  plus_or_minus => L(
    qr/\s*[\-+]\s*/, E(qr/\s*([\-+])\s*/),
@@ -232,6 +232,22 @@ is($parsed_tree->stringify({values=>['name','parse_match']}), $pq,
                     ]
         }, 'no eval do not compress 1');
 #use Data::Dumper; print STDERR "result is ".Dumper($result);
+
+my %recursive = (
+ begin => A('start'),
+ start => A('start', 'start')
+);
+
+my $recursive_parser = eval {new Parse::Stallion(\%recursive)};
+like($@, qr/^Left recursion in grammar/, 'start start');
+
+%recursive = (
+ start => A('start')
+);
+
+$recursive_parser = eval {new Parse::Stallion(\%recursive,
+ {start_rule => 'start'})};
+like($@, qr/^Left recursion in grammar/, 'only start');
 
 print "\nAll done\n";
 

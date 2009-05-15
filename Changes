@@ -1,5 +1,12 @@
 Revision history for Perl extension Parse::Stallion.
 
+0.85
+    removed 0 + from documentation and test code, not needed
+
+    check for left recursion when building parser
+
+    removal of match_once subroutine call
+
 0.83
     Modification of test rd.t to not fail if Text::Balanced is not present.
 

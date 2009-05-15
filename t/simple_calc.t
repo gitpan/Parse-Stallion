@@ -48,7 +48,7 @@ return $_[0]->{expression}}),
    })
  ),
  number => LEAF(qr/\s*[+\-]?(\d+(\.\d*)?|\.\d+)\s*/,
-   E(sub{ return 0 + $_[0]})),
+   E(sub{ return $_[0]})),
  plus_or_minus => LEAF(qr/\s*[\-+]\s*/),
  times_or_divide => LEAF(qr/\s*[*\/]\s*/)
 );
@@ -182,7 +182,7 @@ return $_[0]->{expression}}),
    })
  ),
  number => LEAF(qr/\s*[+\-]?(\d+(\.\d*)?|\.\d+)\s*/,
-   E(sub{ return 0 + $_[0]})),
+   E(sub{ return $_[0]})),
  plus_or_minus => LEAF(qr/\s*[\-+]\s*/),
  times_or_divide => LEAF(qr/\s*[*\/]\s*/)
 );

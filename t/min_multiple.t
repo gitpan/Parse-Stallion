@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #Copyright 2008-9 Arthur S Goldstein
-use Test::More tests => 48;
+use Test::More tests => 46;
 BEGIN { use_ok('Parse::Stallion') };
 #use Data::Dumper;
 
@@ -206,26 +206,6 @@ is_deeply(\@xresults, [343, 235, 533, 445, 4, 24]);
 $posinput = pos $input;
 print "posinput $posinput\n";
 
-
-my $count;
-my $mog;
-my $mogrammar = {
-  start => A('abc', qr/d/),
-  abc => A(qr/a/, L(qr/b/,PB(sub{$count++;return;})), qr/c/,
-   MATCH_ONCE(sub {return $mog}))
-};
-my $moparser = new Parse::Stallion($mogrammar);
-
-$count = 0;
-$mog = 0;
-
-$moparser->parse_and_evaluate('abce');
-is($count, 1, 'parsed fast but through pb');
-
-$count = 0;
-$mog = 1;
-$moparser->parse_and_evaluate('abce');
-is($count, 0, 'parsed fast skipping pb');
 
 my $measure_grammar = {
   start => A('bb', 'cc', 'dd'),

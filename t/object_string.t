@@ -86,7 +86,7 @@ number => L({
 EVALUATION(
   sub{
 #print STDERR "number in is ".$_[0]."\n";
-   return 0 + $_[0];
+   return $_[0];
   })),
 left_parenthesis => L({
   nsl_regex_match => qr/\s*\(\s*/,

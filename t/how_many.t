@@ -37,7 +37,7 @@ my %parsing_rules = (
   ),
  number => L(
   qr/\d+/,
-   E(sub { return 0 + shift; })
+   E(sub { return shift; })
  ),
  list => A('number', M(A(L(qr/\,/), 'number')),
   E(sub {
