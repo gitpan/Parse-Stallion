@@ -35,6 +35,7 @@ t/parsing_evaluation.t
 t/program.t
 t/rd.t
 t/rdbasics.t
+t/rdfullbasics.t
 t/simp.t
 t/simple_calc.t
 t/space_in_eval.t

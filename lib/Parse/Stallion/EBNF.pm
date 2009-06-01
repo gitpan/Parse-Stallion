@@ -12,6 +12,7 @@ sub ebnf {
   my $parser = shift;
 
   my @queue;
+  push @queue, keys %{$parser->{rule}};
   my $start_rule = $parser->{start_rule};
   push @queue, $start_rule;
 
@@ -50,7 +51,9 @@ sub ebnf {
           $results .= $parser->{rule}->{$rule}->{leaf_display};
         }
       }
-      else { croak "unknown rule type ".$parser->{rule}->{$rule}->{rule_type};}
+      else {
+        croak "Rule $rule unknown type ".$parser->{rule}->{$rule}->{rule_type};
+      }
       if ($parser->{rule}->{$rule}->{subrule_list}) {
         foreach my $subrule (@{$parser->{rule}->{$rule}->{subrule_list}}) {
           push @queue, $subrule->{name};
@@ -344,6 +347,11 @@ my %ebnf_rules = (
 );
 
 our $ebnf_parser = new Parse::Stallion(\%ebnf_rules);
+foreach my $mn (keys %{$ebnf_parser->{rule}}) {
+  if (!$ebnf_parser->{rule}->{$mn}->{rule_type}) {
+    warn "name generated $mn\n";
+  }
+}
 
 use Parse::Stallion::EBNF;
 my $ebnf_form = ebnf Parse::Stallion::EBNF($ebnf_parser);
@@ -595,6 +603,10 @@ Comments may be placed on lines after a hash ('#'):
 As in Parse::Stallion, a PARSE_FORWARD routine may be declared via
 F{ sub {your routine} }F (or F[ followed by ]F).
 A PARSE_BACKTRACK routine can follow via a B{ sub {...}}B.
+
+=head1 VERSION
+
+0.5
 
 =head1 SEE ALSO
 

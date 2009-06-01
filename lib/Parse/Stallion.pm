@@ -48,20 +48,145 @@ sub new {
   return bless $parsing_info, $class;
 }
 
+sub parse_leaf {
+  my $parsing_info = shift;
+  my $parameters = shift;
+  my $start_rule_name = shift;
+  my $parse_stallion = $parsing_info->{parse_stallion};
+  my $parse_hash = $parameters->{parse_hash};
+  my $parse_this_ref = $parse_hash->{parse_this_ref} =
+   $parameters->{parse_this_ref};
+  my $parse_this_length;
+  if (defined $parse_this_ref) {
+    $parse_this_length = length($$parse_this_ref);
+  }
+  else {
+    $parse_this_length = 0;
+  }
+  my $do_evaluation_in_parsing = $parse_stallion->{do_evaluation_in_parsing};
+  my $start_node = $parse_stallion->{rule}->{$start_rule_name};
+  my $initial_position;
+  if (defined $parameters->{start_position}) {
+    $initial_position = $parameters->{start_position};
+  }
+  elsif ($parse_stallion->{initial_position_routine}) {
+    $initial_position = $parse_stallion->{initial_position_routine}
+    ($parse_this_ref, $parse_hash);
+  }
+  else {
+    $initial_position = $parameters->{initial_pos} || 0;
+  }
+
+  my $tree;
+  my @bottom_up_left_to_right;
+  my $current_position;
+  my $continue_forward;
+  my $match;
+
+  if (my $pf = $start_node->{parse_forward}) {
+    $parse_hash->{parent_node} = {};
+    $parse_hash->{current_position} = $initial_position;
+    $parse_hash->{rule_name} = $start_rule_name;
+    ($continue_forward, $match, $current_position) =
+     &{$pf}($parse_hash);
+    if (defined $current_position) {
+      if ($current_position < $initial_position) {
+        croak ("Parse forward on $start_rule_name resulted in
+         backwards progress ($initial_position, $current_position)");
+      }
+    }
+    else {
+      $current_position = $initial_position;
+    }
+  }
+  elsif (my $x = $start_node->{regex_match}) {
+    pos $$parse_this_ref = $initial_position;
+    if ($$parse_this_ref =~ m/$x/cg) {
+      if (defined $2) {$match = $2;}
+      else {$match = $1;}
+      $continue_forward = 1;
+      $current_position = pos $$parse_this_ref;
+    }
+    else {
+      $continue_forward = 0;
+    }
+  }
+  else {
+    croak ("Cannot handle leaf $start_rule_name");
+  }
+  if ($continue_forward) {
+    $tree = {
+      name => $start_rule_name,
+      alias => $start_node->{alias},
+      steps => 1,
+      parent => undef,
+      position_when_entered => $initial_position,
+      position_when_completed => $current_position,
+      parse_match => $match,
+      child_count => 0
+    };
+    my $reject;
+    if ($do_evaluation_in_parsing) {
+      $parameters->{nodes} = [$tree];
+      $parse_hash->{current_position} = $current_position;
+      (undef, $reject) = $parse_stallion->new_evaluate_tree_node(
+       $parameters);
+    }
+    if (defined $reject && $reject) {
+      $continue_forward = 0;
+    }
+    elsif (
+     (($parse_stallion->{final_position_routine} &&
+     (&{$parse_stallion->{final_position_routine}}($parse_this_ref,
+      $current_position, $parse_hash) != $current_position))
+     ||
+      (!($parse_stallion->{final_position_routine}) &&
+       ($parse_this_length != $current_position)))) {
+      $continue_forward = 0;
+    }
+  }
+  if ($continue_forward) {
+    push @bottom_up_left_to_right, $tree;
+  }
+  else {
+    $tree = undef;
+  }
+
+
+  my $results = $parameters->{parse_info};
+  $results->{start_rule} = $start_rule_name;
+  $results->{number_of_steps} = 1;
+  $results->{final_position} = $current_position;
+  $results->{final_position_rule} = $start_rule_name;
+  $results->{parse_backtrack_value} = undef;
+  $results->{maximum_position} = $current_position;
+  $results->{maximum_position_rule} = $start_rule_name;
+  $results->{parse_succeeded} = $continue_forward;
+  $results->{tree} = $tree;
+  $results->{bottom_up_left_to_right} = \@bottom_up_left_to_right;
+  if ($do_evaluation_in_parsing) {
+    $results->{parsing_evaluation} = $tree->{computed_value};
+  }
+  return $results;
+}
+
 sub parse {
   my $parsing_info = shift;
   my $parse_stallion = $parsing_info->{parse_stallion};
   my $parameters = shift;
   my $rule = $parse_stallion->{rule};
-  my $start_node;
+  my $start_rule;
   if (defined $parameters->{start_rule}) {
     if (!defined $rule->{$parameters->{start_rule}}) {
       croak ("Unknown start rule ".$parameters->{start_rule});
     }
-    $start_node = $parameters->{start_rule};
+    $start_rule = $parameters->{start_rule};
   }
   else {
-    $start_node = $parse_stallion->{start_rule};
+    $start_rule = $parse_stallion->{start_rule};
+  }
+  if ($rule->{$start_rule}->{leaf_rule}) {
+    return $parsing_info->parse_leaf($parameters, $start_rule);
   }
   my $parse_trace = $parameters->{parse_trace};
   my $parse_hash = $parameters->{parse_hash};
@@ -74,7 +199,13 @@ sub parse {
     $max_steps = 1000000;
   }
   my @bottom_up_left_to_right;
-  my $parse_this_length = length($$parse_this_ref);
+  my $parse_this_length;
+  if (defined $parse_this_ref) {
+    $parse_this_length = length($$parse_this_ref);
+  }
+  else {
+    $parse_this_length = 0;
+  }
   my $move_back_mode = 0;
 
   my $first_alias =
@@ -94,7 +225,7 @@ sub parse {
   my $results = $parameters->{parse_info};
   $results->{start_position} = $current_position;
   my $maximum_position = $current_position;
-  my $maximum_position_rule = $start_node;
+  my $maximum_position_rule = $start_rule;
 
   my $any_minimize_children = $parse_stallion->{any_minimize_children} || 0;
   my $any_match_once = $parse_stallion->{any_match_once} || 0;
@@ -111,7 +242,7 @@ sub parse {
   }
 
   my $tree = {
-    name => $start_node,
+    name => $start_rule,
     steps => 0,
     alias => $first_alias,
     position_when_entered => $current_position,
@@ -275,7 +406,7 @@ sub parse {
             if (defined $current_position) {
               if ($current_position < $previous_position) {
                 croak ("Parse forward on $new_rule_name resulted in
-                 backwards progress ($previous_position, $current_position)");
+                 backward progress ($previous_position, $current_position)");
               }
             }
             else {
@@ -352,7 +483,11 @@ sub parse {
         }
         elsif ($current_position == $current_node->{position_when_entered}
          && $current_node->{parent} &&
-         (defined $rule->{$current_node->{parent}->{name}}->{maximum_child})) {
+         (defined $rule->{$current_node->{parent}->{name}}->{maximum_child})
+         && ($current_node->{parent}->{child_count} >
+         $rule->{$current_node->{parent}->{name}}->{minimum_child})
+         ) {
+          $message .= " Last child empty " if $parse_trace;
           $message .= " Child of multiple cannot be empty " if $parse_trace;
           $moving_forward = 0;
           $moving_down = 1;
@@ -490,7 +625,7 @@ sub parse {
       $max_steps += 1000000;
     }
   }
-  $results->{start_rule} = $start_node;
+  $results->{start_rule} = $start_rule;
   $results->{number_of_steps} = $steps;
   $results->{final_position} = $current_position;
   $results->{final_position_rule} = $current_node_name;
@@ -516,7 +651,7 @@ sub parse {
 
 package Parse::Stallion;
 require Exporter;
-our $VERSION = '0.85';
+our $VERSION = '0.90';
 our @ISA = qw(Exporter);
 our @EXPORT =
  qw(A AND O OR LEAF L MATCH_ONCE M MULTIPLE OPTIONAL ZERO_OR_ONE Z
@@ -1126,16 +1261,6 @@ sub set_up_full_rule_set {
     }
   }
 
-  my $rule_count = scalar keys %{$self->{rule}};
-  if ($rule_count == 1) {
-    $self->add_rule({
-         rule_name => $start_rule.'x',
-         rule_definition => AND($start_rule, E(
-           sub {my ($v) = values %{$_[0]}; return $v}))
-    });
-    $start_rule .= 'x';
-  }
-
   $self->look_for_left_recursion;
   $self->{start_rule} = $start_rule;
 
@@ -1151,9 +1276,6 @@ sub look_for_left_recursion {
     my @active_rules;
     my $previous_allows_zero = 0;
     while (defined $current_rule) {
-#print "cr is $current_rule and md is $moving_down\n";
-#use Data::Dumper;print "ar hash ".Dumper(\%active_rules)."\n";
-#use Data::Dumper;print "ar arry ".Dumper(\@active_rules)."\n";
       if ($moving_down) {
         if ($active_rules{$current_rule}++) {
           croak "Left recursion in grammar: ".
@@ -1167,7 +1289,7 @@ sub look_for_left_recursion {
         else {
           $active_rules{$current_rule} = 1;
           if ($self->{rule}->{$current_rule}->{multiple_rule}) {
-            $current_rule = $self->{rule}->{$current_rule}->{subrule_name};
+            $current_rule = $self->{rule}->{$current_rule}->{sub_rule_name};
           }
           else {
             $current_rule =
@@ -1194,7 +1316,6 @@ sub look_for_left_recursion {
          $self->{rule}->{$current_rule}->{leaf_rule} ||
          $checked_rules{$current_rule}) {
           delete $active_rules{$current_rule};
-#print "deleted $current_rule\n";
           $previous_allows_zero = $self->{rule}->{$current_rule}->{zero} || 0;
           pop @active_rules;
           $current_rule = $active_rules[-1];
@@ -1203,7 +1324,6 @@ sub look_for_left_recursion {
            $self->{rule}->{$current_rule}->{subrule_list_count}) {
             $previous_allows_zero = $self->{rule}->{$current_rule}->{zero} || 0;
             delete $active_rules{$current_rule};
-#print "Deleted $current_rule\n";
             pop @active_rules;
             $current_rule = $active_rules[-1];
         }
@@ -1211,8 +1331,6 @@ sub look_for_left_recursion {
           my $previous_rule =
            $self->{rule}->{$current_rule}->{subrule_list}->
            [$active_rules{$current_rule}-1]->{name};
-#print "cr is $current_rule and ar is ".$active_rules{$current_rule}."\n";
-#print "previous rule is $previous_rule\n";
           if ((defined $self->{rule}->{$previous_rule}->{zero} &&
            $self->{rule}->{$previous_rule}->{zero}) ||
            ($self->{rule}->{$previous_rule}->{multiple_rule} &&
@@ -1221,12 +1339,10 @@ sub look_for_left_recursion {
              $self->{rule}->{$current_rule}->{subrule_list}->
              [$active_rules{$current_rule}++]->{name};
             $moving_down = 1;
-#warn "reset to $current_rule\n";
           }
           else {
             $previous_allows_zero = $self->{rule}->{$current_rule}->{zero} || 0;
             delete $active_rules{$current_rule};
-#print "deLeted $current_rule\n";
             pop @active_rules;
             $current_rule = $active_rules[-1];
           }
@@ -1234,7 +1350,7 @@ sub look_for_left_recursion {
         else {
           $current_rule = 
            $self->{rule}->{$current_rule}->{subrule_list}->
-           [$active_rules{$current_rule}++];
+           [$active_rules{$current_rule}++]->{name};
           $moving_down = 1;
         }
       }
@@ -1812,8 +1928,8 @@ filled in during parse_and_evaluate.
   $parse_info->{start_position}; # Initial position of parse
   $parse_info->{final_position}; # 0 if parse failed
   $parse_info->{final_position_rule}; # Last rule looked at
-  $parse_info->{max_position}; # Maximum position in parse
-  $parse_info->{max_position_rule}; # First rule with maximum position
+  $parse_info->{maximum_position}; # Maximum position in parse
+  $parse_info->{maximum_position_rule}; # First rule at maximum position
   $parse_info->{parse_backtrack_value};
    # 0 unless parse backtrack call ends parse
 
@@ -1884,7 +2000,8 @@ checked to see if they match the empty string.
 
 Illegal Case 3:
 
-     rule_with_pf => A(L(PF(sub {return 1}))', 'rule_with_pf', 'other_rule')
+     rule_with_pf => A(L(PF(sub {return 1}))', 'rule_with_pf',
+      'other_rule')
 
 The third case will be detected during parsing.
 
@@ -2561,6 +2678,10 @@ requiring perl 5.6 or higher.
 Parse::Stallion should work with earlier versions of perl, neither
 of those modules is required outside of the test cases for installation.
 
+=head1 VERSION
+
+0.89
+
 =head1 AUTHOR
 
 Arthur Goldstein, E<lt>arthur@acm.orgE<gt>
@@ -2583,6 +2704,14 @@ under the terms of the Perl Artistic License
 Please email in bug reports.
 
 =head1 TO DO AND FUTURE POSSIBLE CHANGES
+
+left recursion checking, is it really checking things off or running through each node?  Also, if parse_forward routine in there, remove zero'ing.
+
+new doc on min children and empty
+
+Run through all the files in demo of recdescent and get running
+
+croak on invalid start rule?
 
 Fast mode.  There are checks in parsing for the parse trace, parse_backtrack,
 parse_forward, left recursion, ...  Removing these would make the parser

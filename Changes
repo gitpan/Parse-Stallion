@@ -1,5 +1,12 @@
 Revision history for Perl extension Parse::Stallion.
 
+0.90
+    Additions to Parse::Stallion::RD
+
+    Special case start rule is leaf.
+
+    Special case undef input.
+
 0.85
     removed 0 + from documentation and test code, not needed
 
