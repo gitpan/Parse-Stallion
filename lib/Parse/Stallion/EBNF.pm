@@ -12,9 +12,9 @@ sub ebnf {
   my $parser = shift;
 
   my @queue;
-  push @queue, keys %{$parser->{rule}};
+  unshift @queue, keys %{$parser->{rule}};
   my $start_rule = $parser->{start_rule};
-  push @queue, $start_rule;
+  unshift @queue, $start_rule;
 
   my $results;
   my %covered;
@@ -55,9 +55,11 @@ sub ebnf {
         croak "Rule $rule unknown type ".$parser->{rule}->{$rule}->{rule_type};
       }
       if ($parser->{rule}->{$rule}->{subrule_list}) {
+        my @new_rules;
         foreach my $subrule (@{$parser->{rule}->{$rule}->{subrule_list}}) {
-          push @queue, $subrule->{name};
+          push @new_rules, $subrule->{name};
         }
+        unshift @queue, @new_rules;
       }
       if ($parser->{rule}->{$rule}->{minimize_children}) {
         $results .= ' -MATCH_MIN_FIRST- ';

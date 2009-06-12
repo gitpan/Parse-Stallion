@@ -92,7 +92,7 @@ sub parse_leaf {
     if (defined $current_position) {
       if ($current_position < $initial_position) {
         croak ("Parse forward on $start_rule_name resulted in
-         backwards progress ($initial_position, $current_position)");
+         backward progress ($initial_position, $current_position)");
       }
     }
     else {
@@ -129,8 +129,7 @@ sub parse_leaf {
     if ($do_evaluation_in_parsing) {
       $parameters->{nodes} = [$tree];
       $parse_hash->{current_position} = $current_position;
-      (undef, $reject) = $parse_stallion->new_evaluate_tree_node(
-       $parameters);
+      $reject = $parse_stallion->new_evaluate_tree_node($parameters);
     }
     if (defined $reject && $reject) {
       $continue_forward = 0;
@@ -207,6 +206,7 @@ sub parse {
     $parse_this_length = 0;
   }
   my $move_back_mode = 0;
+  my $not_move_back_mode = 1;
 
   my $first_alias =
    'b'.$parse_stallion->{separator}.$parse_stallion->{separator};
@@ -228,6 +228,7 @@ sub parse {
   my $maximum_position_rule = $start_rule;
 
   my $any_minimize_children = $parse_stallion->{any_minimize_children} || 0;
+  my $not_any_minimize_children = !$any_minimize_children;
   my $any_match_once = $parse_stallion->{any_match_once} || 0;
   my $any_parse_forward = $parse_stallion->{any_parse_forward} || 0;
   my $any_parse_backtrack = $parse_stallion->{any_parse_backtrack} || 0;
@@ -320,7 +321,7 @@ sub parse {
           }
         }
         elsif ($any_minimize_children && $current_rule->{minimize_children} &&
-         $current_rule->{minimum_child} <= $current_node->{child_count}) {
+         ($current_rule->{minimum_child} <= $current_node->{child_count})) {
           $node_completed = 1;
         }
         elsif ($current_rule->{maximum_child} &&
@@ -342,7 +343,7 @@ sub parse {
             $move_back_to_child = 1;
           }
           else {
-            if (!$move_back_mode && (++$current_node->{or_child_number} <
+            if ($not_move_back_mode && (++$current_node->{or_child_number} <
              $current_rule->{subrule_list_count})) {
               $new_sub_rule = $current_rule->{subrule_list}->[
                $current_node->{or_child_number}];
@@ -356,23 +357,31 @@ sub parse {
           }
         }
         elsif ($current_rule->{and_rule}) {
-          if ($current_node->{child_count} == 0) {
-            $remove_node = 1;
-          }
-          else {
+          if ($current_node->{child_count}) {
             $move_back_to_child = 1;
           }
+          else {
+            $remove_node = 1;
+          }
         }
-        elsif (!$move_back_mode && (((!$any_minimize_children ||
-         !$current_rule->{minimize_children}) && !$moving_down) &&
-         (!$current_rule->{minimum_child} ||
-         ($current_rule->{minimum_child} <= $current_node->{child_count})))) {
+        elsif
+         (
+          (
+           (
+            !$moving_down &&
+            ($not_any_minimize_children || !$current_rule->{minimize_children})
+           ) &&
+           (!$current_rule->{minimum_child} ||
+           ($current_rule->{minimum_child} <= $current_node->{child_count}))
+          )
+           && $not_move_back_mode
+          ) {
           $node_completed = 1;
         }
-        elsif (!$move_back_mode && (($any_minimize_children &&
-         $current_rule->{minimize_children} && $moving_down) &&
+        elsif ($any_minimize_children && $not_move_back_mode &&
+         $current_rule->{minimize_children} && $moving_down &&
          (!$current_rule->{maximum_child} ||
-         ($current_rule->{maximum_child} > $current_node->{child_count})))) {
+         ($current_rule->{maximum_child} > $current_node->{child_count}))) {
           $new_rule_name = $current_rule->{sub_rule_name};
           $new_alias = $current_rule->{sub_alias};
           $create_child = 1;
@@ -382,6 +391,37 @@ sub parse {
         }
         else {
           $remove_node = 1;
+        }
+        if ($move_back_to_child) {
+          $move_back_to_child = 0;
+          $message .= " Backtracking to child" if $parse_trace;
+          $moving_down = 1;
+          $moving_forward = 0;
+          pop @bottom_up_left_to_right if $bottom_up;
+          $current_node =
+           $current_node->{children}->[$current_node->{child_count}-1];
+          $current_node_name = $current_node->{name};
+          $current_rule = $rule->{$current_node_name};
+          $active_rules_positions{$current_node_name}
+           {$current_node->{position_when_entered}} = 1;
+          if ($do_evaluation_in_parsing) {
+            $parameters->{node} = $current_node;
+            $parse_stallion->new_unevaluate_tree_node($parameters);
+          }
+          if ($any_match_once && $not_move_back_mode
+           && $rule->{$current_node_name}->{match_once}) {
+  
+            if ($fast_move_back) {
+              $remove_node = 1;
+              $message .= ". Fast Move Back " if $parse_trace;
+            }
+            else {
+              $move_back_mode = 1;
+              $not_move_back_mode = 0;
+              $current_node->{__move_back_to} = 1;
+              $message .= ". Move Back Mode Enabled " if $parse_trace;
+            }
+          }
         }
       }
 
@@ -472,88 +512,7 @@ sub parse {
           }
         }
       }
-
-      if ($node_completed) {
-        $node_completed = 0;
-        if ($current_node->{__ventured}->{$current_position}++) {
-          $message .= " Already ventured beyond node at position "
-           if $parse_trace;
-          $moving_forward = 0;
-          $moving_down = 1;
-        }
-        elsif ($current_position == $current_node->{position_when_entered}
-         && $current_node->{parent} &&
-         (defined $rule->{$current_node->{parent}->{name}}->{maximum_child})
-         && ($current_node->{parent}->{child_count} >
-         $rule->{$current_node->{parent}->{name}}->{minimum_child})
-         ) {
-          $message .= " Last child empty " if $parse_trace;
-          $message .= " Child of multiple cannot be empty " if $parse_trace;
-          $moving_forward = 0;
-          $moving_down = 1;
-        }
-        else {
-          my $reject;
-          if ($do_evaluation_in_parsing) {
-            $parameters->{nodes} = [$current_node];
-            $parse_hash->{current_position} = $current_position;
-            (undef, $reject) = $parse_stallion->new_evaluate_tree_node(
-             $parameters);
-          }
-          if (defined $reject && $reject) {
-            $moving_forward = 0;
-            $moving_down = 1;
-            $message .= " Node rejected" if $parse_trace;
-          }
-          else {
-            push @bottom_up_left_to_right, $current_node if $bottom_up;
-            $current_node->{'beyond'} = 1;
-            $message .= " Completed node created on step ".
-             $current_node->{steps} if $parse_trace;
-            $moving_down = 0;
-            $moving_forward = 1;
-            delete $active_rules_positions{$current_node_name}
-              {$current_node->{position_when_entered}};
-            $current_node->{position_when_completed} = $current_position;
-            if ($current_node = $current_node->{parent}) {
-              $current_node_name = $current_node->{name};;
-              $current_rule = $rule->{$current_node_name};
-            }
-          }
-        }
-      }
-      elsif ($move_back_to_child) {
-        $move_back_to_child = 0;
-        $message .= " Backtracking to child" if $parse_trace;
-        $moving_down = 1;
-        $moving_forward = 0;
-        pop @bottom_up_left_to_right if $bottom_up;
-        $current_node =
-         $current_node->{children}->[$current_node->{child_count}-1];
-        $current_node_name = $current_node->{name};
-        $current_rule = $rule->{$current_node_name};
-        $active_rules_positions{$current_node_name}
-         {$current_node->{position_when_entered}} = 1;
-        if ($do_evaluation_in_parsing) {
-          $parameters->{node} = $current_node;
-          $parse_stallion->new_unevaluate_tree_node($parameters);
-        }
-        if ($any_match_once && !$move_back_mode
-         && $rule->{$current_node_name}->{match_once}) {
-
-          if ($fast_move_back) {
-            $remove_node = 1;
-            $message .= ". Fast Move Back " if $parse_trace;
-          }
-          else {
-            $move_back_mode = 1;
-            $current_node->{__move_back_to} = 1;
-            $message .= ". Move Back Mode Enabled " if $parse_trace;
-          }
-        }
-      }
-
-      if ($remove_node) {
+      elsif ($remove_node) {
         $remove_node = 0;
         $moving_forward = 0;
         $moving_down = 0;
@@ -568,6 +527,7 @@ sub parse {
         $parse_hash->{parse_match} = $current_node->{parse_match};
         if ($move_back_mode && $current_node->{__move_back_to}) {
           $move_back_mode = 0;
+          $not_move_back_mode = 1;
           $message .= ". Move Back Mode Completed"
            if $parse_trace;
         }
@@ -591,6 +551,50 @@ sub parse {
           $current_rule = $rule->{$current_node_name};
         }
         delete $parse_hash->{parse_match};
+      }
+
+      if ($node_completed) {
+        $node_completed = 0;
+        my $parent = $current_node->{parent};
+        if ($current_position == $current_node->{position_when_entered}
+         && $parent &&
+         (defined $rule->{$parent->{name}}->{minimum_child})
+         && ($parent->{child_count} >
+         $rule->{$parent->{name}}->{minimum_child})
+         ) {
+          $message .= " Last child empty " if $parse_trace;
+          $message .= " Child of multiple cannot be empty " if $parse_trace;
+          $moving_forward = 0;
+          $moving_down = 1;
+        }
+        else {
+          my $reject;
+          if ($do_evaluation_in_parsing) {
+            $parameters->{nodes} = [$current_node];
+            $parse_hash->{current_position} = $current_position;
+            $reject = $parse_stallion->new_evaluate_tree_node($parameters);
+          }
+          if (defined $reject && $reject) {
+            $moving_forward = 0;
+            $moving_down = 1;
+            $message .= " Node rejected" if $parse_trace;
+          }
+          else {
+            push @bottom_up_left_to_right, $current_node if $bottom_up;
+            $current_node->{'beyond'} = 1;
+            $message .= " Completed node created on step ".
+             $current_node->{steps} if $parse_trace;
+            $moving_down = 0;
+            $moving_forward = 1;
+            delete $active_rules_positions{$current_node_name}
+              {$current_node->{position_when_entered}};
+            $current_node->{position_when_completed} = $current_position;
+            if ($current_node = $parent) {
+              $current_node_name = $current_node->{name};
+              $current_rule = $rule->{$current_node_name};
+            }
+          }
+        }
       }
     }
     if (!$current_node && $moving_forward &&
@@ -616,6 +620,7 @@ sub parse {
         }
         else {
           $move_back_mode = 1;
+          $not_move_back_mode = 0;
           $current_node->{__move_back_to} = 1;
           $message .= ". Move Back Mode Enabled " if $parse_trace;
         }
@@ -651,7 +656,7 @@ sub parse {
 
 package Parse::Stallion;
 require Exporter;
-our $VERSION = '0.90';
+our $VERSION = '0.92';
 our @ISA = qw(Exporter);
 our @EXPORT =
  qw(A AND O OR LEAF L MATCH_ONCE M MULTIPLE OPTIONAL ZERO_OR_ONE Z
@@ -661,7 +666,6 @@ our @EXPORT =
 use strict;
 use warnings;
 use Carp;
-use File::Spec;
 
 sub new {
   my $type = shift;
@@ -897,9 +901,6 @@ sub update_count {
     ($subrule_count > $rule_counts->{rule_count}->{$subrule_name}))) {
     $rule_counts->{rule_count}->{$subrule_name} = $subrule_count;
   }
-}
-
-sub default_unevaluation_routine { #empty
 }
 
 sub add_rule {
@@ -1270,6 +1271,7 @@ sub look_for_left_recursion {
   my $self = shift;
   my %checked_rules;
   foreach my $rule (keys %{$self->{rule}}) {
+    if ($checked_rules{$rule}) {next};
     my $current_rule = $rule;
     my $moving_down = 1;
     my %active_rules;
@@ -1483,7 +1485,7 @@ sub new_evaluate_tree_node {
   }
   delete $parse_hash->{current_node};
 
-  return @results;
+  return $results[1];
 }
 
 sub LOCATION {
@@ -1703,7 +1705,7 @@ are the minimum and maximum repetitions allowed.
 The default minimum is 0 and the default maximum is "infinite", though
 this is represented by setting the maximum to 0.
 
-Every occurrence of the subrule must increase the position, this
+Each occurrence of the subrule must increase the position, this
 prevents "left recursion".
 
 By default the maximal number of possible matches of the repeating
@@ -2704,18 +2706,6 @@ under the terms of the Perl Artistic License
 Please email in bug reports.
 
 =head1 TO DO AND FUTURE POSSIBLE CHANGES
-
-left recursion checking, is it really checking things off or running through each node?  Also, if parse_forward routine in there, remove zero'ing.
-
-new doc on min children and empty
-
-Run through all the files in demo of recdescent and get running
-
-croak on invalid start rule?
-
-Fast mode.  There are checks in parsing for the parse trace, parse_backtrack,
-parse_forward, left recursion, ...  Removing these would make the parser
-less flexible/safe but faster.
 
 Please send in suggestions.
 

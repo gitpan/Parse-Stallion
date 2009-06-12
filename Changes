@@ -1,5 +1,15 @@
 Revision history for Perl extension Parse::Stallion.
 
+0.92
+    Removed File::Spec
+
+    Removed __ventured
+
+0.91
+    Change to EBNF.pm to make consistent when outputting grammars
+
+    Minor speedups in parse routine
+
 0.90
     Additions to Parse::Stallion::RD
 

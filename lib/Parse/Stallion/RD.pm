@@ -1966,7 +1966,8 @@ Please email in bug reports.
 
 =head1 TO DO AND FUTURE POSSIBLE CHANGES
 
-Implement missing items from Parse::RecDescent.  Email priorities.
+Implement missing items from Parse::RecDescent.  Email suggestions
+to arthur at acm.org.
 
 =head1 SEE ALSO
 

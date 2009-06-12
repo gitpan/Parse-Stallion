@@ -12,11 +12,12 @@ To install this module type the following:
 
 SUPPORT AND DOCUMENTATION
 
-After installing, you can find documentation for this module with the perldoc command.
+After installing, you can find documentation for this module with perldoc.
 
     perldoc Parse::Stallion
     perldoc Parse::Stallion::EBNF
     perldoc Parse::Stallion::RD
+    perldoc Parse::Stallion::CSV
 
 
 DEPENDENCIES

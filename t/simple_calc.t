@@ -125,16 +125,16 @@ use_ok('Parse::Stallion::EBNF');
 my $ebnf = ebnf Parse::Stallion::EBNF($short_calculator_parser);
 
 is ($ebnf,
-'number = (?-xism:\s*[+\-]?(\d+(\.\d*)?|\.\d+)\s*) -EVALUATION-  ;
+'start_rule = expression -EVALUATION-  ;
+expression = term , expression__XZ__1 -EVALUATION-  ;
+term = number , term__XZ__1 -EVALUATION-  ;
+number = (?-xism:\s*[+\-]?(\d+(\.\d*)?|\.\d+)\s*) -EVALUATION-  ;
+term__XZ__1 = { term__XZ__2 } ;
+term__XZ__2 = times_or_divide , number ;
+times_or_divide = (?-xism:\s*[*/]\s*) ;
+expression__XZ__1 = { expression__XZ__2 } ;
 expression__XZ__2 = plus_or_minus , term ;
 plus_or_minus = (?-xism:\s*[\-+]\s*) ;
-term__XZ__2 = times_or_divide , number ;
-term = number , term__XZ__1 -EVALUATION-  ;
-term__XZ__1 = { term__XZ__2 } ;
-expression__XZ__1 = { expression__XZ__2 } ;
-start_rule = expression -EVALUATION-  ;
-expression = term , expression__XZ__1 -EVALUATION-  ;
-times_or_divide = (?-xism:\s*[*/]\s*) ;
 ', "ebnf test");
 
 my %calculator_with_end_rules = (
