@@ -28,6 +28,10 @@ This module requires these other modules and libraries:
   Time::Local
   File::Spec
 
+For Parse::Stallion::RD, the following module is needed
+
+  Text::Balanced
+
 COPYRIGHT AND LICENCE
 
 Copyright (C) 2008-9 by Arthur Goldstein, arthur@acm.org

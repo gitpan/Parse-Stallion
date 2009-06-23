@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #Copyright 2008-9 Arthur S Goldstein
-use Test::More tests => 46;
+use Test::More tests => 50;
 BEGIN { use_ok('Parse::Stallion') };
 #use Data::Dumper;
 
@@ -12,7 +12,7 @@ my %parsing_rules_with_min_first = (
     return $_[0]->{parse_expression}})
  ),
  parse_expression => M(
-   'pe', 'match_min_first', USE_STRING_MATCH()
+   'pe', MATCH_MIN_FIRST(), USE_STRING_MATCH()
  ),
  pe => L(
    qr/./
@@ -81,11 +81,11 @@ is_deeply ($result, {f=> ['x','x'] , g=> 'x'}, 'without match');
 
 my %another = (
  start_expression => A(M({f => qr/x/}, MATCH_ONCE(),
-   'match_min_first', 3,5), {g => qr/y/})
+   MATCH_MIN_FIRST(), 3,5), {g => qr/y/})
 );
 my %anotherm = (
  start_expression => A(M({f => qr/x/},
-   'match_min_first', 3,5), {g => qr/y/})
+   MATCH_MIN_FIRST(), 3,5), {g => qr/y/})
 );
 
 
@@ -152,22 +152,31 @@ my $mo_parser_1 = new Parse::Stallion(
    {rule2 => A(M(qr/t/, MATCH_ONCE()), M(qr/t/, MATCH_ONCE()),
     L(qr/u/, PB(sub {return 0})), MATCH_ONCE())});
 
+  my $mo_parser_4 = new Parse::Stallion(
+   {rule2 => A(M(qr/t/, MATCH_ONCE()), M(qr/t/, MATCH_ONCE()),
+    L(qr/u/, PB(sub {return 0})), MATCH_ONCE())}, {fast_move_back => 1});
+
 my $pi = {};
 
 $result = $mo_parser_1->parse_and_evaluate('ttttt',{parse_info => $pi});
 
-is ($pi->{number_of_steps}, 157, 'match once steps');
+is ($pi->{number_of_steps}, 157, 'match once steps 1');
 #print "parse info steps 1 ".$pi->{number_of_steps}."\n";
 
 $result = $mo_parser_2->parse_and_evaluate('ttttt',{parse_info => $pi});
 
 #print "parse info steps 2 ".$pi->{number_of_steps}."\n";
-is ($pi->{number_of_steps}, 15, 'match once steps');
+is ($pi->{number_of_steps}, 15, 'match once steps 2');
 
 $result = $mo_parser_3->parse_and_evaluate('ttttt',{parse_info => $pi});
 
 #print "parse info steps 3 ".$pi->{number_of_steps}."\n";
-is ($pi->{number_of_steps}, 27, 'match once steps');
+is ($pi->{number_of_steps}, 27, 'match once steps 3');
+
+$result = $mo_parser_4->parse_and_evaluate('ttttt',{parse_info => $pi});
+
+#print "parse info steps 4 ".$pi->{number_of_steps}."\n";
+is ($pi->{number_of_steps}, 15, 'match once steps 4');
 
 my $g = {no_double_x => O(qr/x/, qr/xx/, qr/yy/, MATCH_ONCE())};
 my $h = new Parse::Stallion($g);
@@ -285,6 +294,39 @@ is ($tab, 2, 'line tab 2');
   is ($keyparser->parse_and_evaluate('key1;'), undef, 'do eval key 1');
   is_deeply ($keyparser->parse_and_evaluate('key3;'), {''=>';',leaf=>'key3'},
    'do eval key 3');
+
+  my $s;
+  my $nmo_parser_x = new Parse::Stallion(
+   {rule => A(M('mm', 1,0), qr/tu/),
+    mm => A(qr/t/, L(PF(sub {$s .= '0';return 1}),
+     PB(sub {$s .= '1';return}))),
+  });
+
+  my $mo_parser_x = new Parse::Stallion(
+   {rule => A(M('mm', 1,0, MATCH_ONCE), qr/tu/),
+    mm => A(qr/t/, L(PF(sub {$s .= '0';return 1}),
+     PB(sub {$s .= '1';return}))),
+  });
+
+  my $mo_parser_y = new Parse::Stallion(
+   {rule => A(M('mm', 1,0, MATCH_ONCE), qr/tu/),
+    mm => A(qr/t/, L(PF(sub {$s .= '0';return 1}),
+     PB(sub {$s .= '1';return}))),
+  },
+ {fast_move_back => 1}
+);
+
+  $result = $mo_parser_x->parse_and_evaluate('ttttu');
+  is ($s, '00001111', 'match once no fast move back');
+
+  $s = '';
+  $result = $nmo_parser_x->parse_and_evaluate('ttttu');
+  is ($s, '00001', 'no match once');
+
+  $s = '';
+
+  $result = $mo_parser_y->parse_and_evaluate('ttttu');
+  is ($s, '0000', 'match once fast move back');
 
 print "\nAll done\n";
 

@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #Copyright 2008 Arthur S Goldstein
-use Test::More tests => 76;
+use Test::More tests => 84;
 BEGIN { use_ok('Parse::Stallion') };
 
 my $result;
@@ -213,7 +213,7 @@ is (defined $result,1, 'quadruple r');
 
 
 my %b_rules = (
- start_expression => M(qr/b/,'match_min_first'),
+ start_expression => M(qr/b/,MATCH_MIN_FIRST()),
 );
 
 my $b_parser = new Parse::Stallion(
@@ -241,7 +241,7 @@ is (defined $result,1, 'quadruple b');
 
 
 my %c_rules = (
- start_expression => M(qr/c/,0,1,'match_min_first'),
+ start_expression => M(qr/c/,0,1,MATCH_MIN_FIRST),
 );
 
 my $c_parser = new Parse::Stallion(
@@ -266,7 +266,7 @@ is (defined $result,'', 'quadruple c');
 
 
 my %d_rules = (
- start_expression => M(qr/d/,1,1,'match_min_first'),
+ start_expression => M(qr/d/,1,1,MATCH_MIN_FIRST()),
 );
 
 my $d_parser = new Parse::Stallion(
@@ -291,7 +291,7 @@ is (defined $result,'', 'quadruple d');
 
 
 my %e_rules = (
- start_expression => M(qr/e/,2,3,'match_min_first'),
+ start_expression => M(qr/e/,2,3,MATCH_MIN_FIRST()),
 );
 
 my $e_parser = new Parse::Stallion(
@@ -316,7 +316,7 @@ is (defined $result,'', 'quadruple e');
 
 
 my %f_rules = (
- start_expression => M(qr/f/,3,0,'match_min_first'),
+ start_expression => M(qr/f/,3,0,MATCH_MIN_FIRST()),
 );
 
 my $f_parser = new Parse::Stallion(
@@ -342,7 +342,7 @@ is (defined $result,1, 'quadruple f');
 
 
 my %h_rules = (
- start_expression => M(qr/h/,0,2,'match_min_first'),
+ start_expression => M(qr/h/,0,2,MATCH_MIN_FIRST()),
 );
 
 my $h_parser = new Parse::Stallion(
@@ -368,7 +368,7 @@ is (defined $result,'', 'quadruple h');
 
 
 my %i_rules = (
- start_expression => M(qr/i/,1,0,'match_min_first'),
+ start_expression => M(qr/i/,1,0,MATCH_MIN_FIRST()),
 );
 
 my $i_parser = new Parse::Stallion(
@@ -390,6 +390,49 @@ is (defined $result,1, 'triple i');
 
 $result = $i_parser->parse_and_evaluate('iiii');
 is (defined $result,1, 'quadruple i');
+
+my %mmf_rules = (
+ start_expression => A(M(qr/i/,1,0,MATCH_MIN_FIRST()),{rest=>qr/.*/},
+  E(sub {return $_[0]->{rest}}))
+);
+
+my $mmf_parser = new Parse::Stallion(
+  \%mmf_rules
+);
+
+$result = $mmf_parser->parse_and_evaluate('');
+is ($result,undef, 'mmf 1');
+
+$result = $mmf_parser->parse_and_evaluate('i');
+is ($result,'', 'mmf 2');
+
+$result = $mmf_parser->parse_and_evaluate('ii');
+is ($result,'i', 'mmf 3');
+
+$result = $mmf_parser->parse_and_evaluate('iiij');
+is ($result,'iij', 'mmf 4');
+
+my %nmmf_rules = (
+ start_expression => A(M(qr/i/,1,0),{rest=>qr/.*/},
+  E(sub {return $_[0]->{rest}}))
+);
+
+my $nmmf_parser = new Parse::Stallion(
+  \%nmmf_rules
+);
+
+$result = $nmmf_parser->parse_and_evaluate('');
+is ($result,undef, 'nmmf 1');
+
+$result = $nmmf_parser->parse_and_evaluate('i');
+is ($result,'', 'nmmf 2');
+
+$result = $nmmf_parser->parse_and_evaluate('ii');
+is ($result,'', 'nmmf 3');
+
+$result = $nmmf_parser->parse_and_evaluate('iiij');
+is ($result,'j', 'nmmf 4');
+
 
 print "\nAll done\n";
 

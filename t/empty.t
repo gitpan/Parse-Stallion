@@ -43,7 +43,7 @@ my $calculator_parser = new Parse::Stallion(
   {start_rule => 'start_expression'});
 
 eval { my $result = $calculator_parser->parse_and_evaluate("7+4"); };
-like ($@, qr/^expression duplicated at position /,'invalid grammar 1');
+like ($@, qr/^expression.* duplicated position /,'invalid grammar 1');
 
 my %empty_rules = (
  start_expression => A(
@@ -81,7 +81,7 @@ my $empty_parser = new Parse::Stallion(
 eval { my $result = $empty_parser->parse_and_evaluate( "7+4",
   {parse_trace => \@pt,
    max_steps => 100} ); };
-like ($@, qr/^expression duplicated at position/,'invalid grammar 2');
+like ($@, qr/^expression.* duplicated position/,'invalid grammar 2');
 #use Data::Dumper; print STDERR "pt is ".Dumper(\@pt)."\n";
 
 my %zempty_rules = (

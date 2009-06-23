@@ -210,7 +210,7 @@ my %ebnf_rules = (
         $max = $_[0]->{min_max}->{max};
       }
       if ($_[0]->{use_min_first}) {
-        return M($_[0]->{rule_def},$min,$max, 'match_min_first');
+        return M($_[0]->{rule_def},$min,$max, MATCH_MIN_FIRST());
       }
       return M($_[0]->{rule_def},$min,$max);}
      )),
@@ -234,7 +234,7 @@ my %ebnf_rules = (
       }
       if ($_[0]->{use_min_first}) {
         return {rule_type => 'MULTIPLE',
-         elements => [$_[0]->{element},$min,$max, 'match_min_first']};
+         elements => [$_[0]->{element},$min,$max, MATCH_MIN_FIRST()]};
       }
       return {rule_type => 'MULTIPLE', elements => [$_[0]->{element},$min,$max]}
      })),

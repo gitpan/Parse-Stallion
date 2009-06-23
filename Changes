@@ -1,5 +1,12 @@
 Revision history for Perl extension Parse::Stallion.
 
+1.00
+    'match_min_first' became MATCH_MIN_FIRST
+
+    Modify check for infinite loop (faster)
+
+    Removed checking of repeat positions/rules ("blocked" in former code)
+
 0.92
     Removed File::Spec
 
