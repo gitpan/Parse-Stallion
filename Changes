@@ -1,5 +1,12 @@
 Revision history for Perl extension Parse::Stallion.
 
+1.01
+    _matched_string in Parse::Stallion::EBNF
+
+    MATCHED_STRING in Parse::Stallion
+
+    parse_trace_routine
+
 1.00
     'match_min_first' became MATCH_MIN_FIRST
 

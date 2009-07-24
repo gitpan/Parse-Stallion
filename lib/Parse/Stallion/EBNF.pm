@@ -5,7 +5,7 @@ use Carp;
 use strict;
 use warnings;
 use Parse::Stallion;
-our $VERSION='0.5';
+our $VERSION='0.6';
 
 sub ebnf {
   shift;
@@ -176,7 +176,6 @@ my %ebnf_rules = (
       $before =~ s/.*\s(.+)/$1/;
       my $after = substr($$text, $pos, 10);
       $after =~ s/(.+?)\s(.*)/$1/;
-      #print STDERR "Error at line $line tab stop $position near '$before".$after."'\n";
       return "Error at line $line tab stop $position near '$before".$after."'";
      })),
    and => A( 'element' ,
@@ -192,9 +191,13 @@ my %ebnf_rules = (
    sub_element => O('rule_name', 'sub_rule',
     'optional_sub_rule',
     'multiple_sub_rule', 'leaf_sub_rule', 'pf_pb_subrule', 'quote_sub_rule',
-    'use_string_match'),
+    'use_string_match', 'match_once', 'match_min_first'),
    use_string_match => L(qr/\=SM/,
-    E(sub {return USE_STRING_MATCH()})),
+    E(sub {return USE_STRING_MATCH})),
+   match_once => L(qr/\=MO/,
+    E(sub {return MATCH_ONCE})),
+   match_min_first => L(qr/\=MMF/,
+    E(sub {return MATCH_MIN_FIRST})),
    optional_sub_rule => A( qr/\[/, 'some_white_space',
      'rule_def', 'some_white_space', qr/\]/i,
     E(sub {
@@ -320,7 +323,8 @@ my %ebnf_rules = (
        return $routine;})
    ),
    eval_subroutine => A( qr/S[^\w\s]/, 'sub_routine',
-    E(sub {return {'sub' => SE($_[0]->{'sub_routine'}->{the_sub})}})
+    E(sub {return {'sub' => SE($_[0]->{'sub_routine'}->{the_sub},
+     '_matched_string')}})
    ),
    sub_routine => L(PARSE_FORWARD(
     sub {my $parameters = shift;
@@ -545,7 +549,7 @@ the alias then a dot.  I.e.,
 
 For the evaluation phase (see Parse::Stallion) any
 rule can be enclosed within parentheses followed by
-an evaluationsubroutine that should be enclosed within S{ til }S.
+an evaluation subroutine that should be enclosed within S{ til }S.
 Or else S[ til ]S.
 The 'sub ' declaration is done internally.
 
@@ -564,6 +568,7 @@ will create an evaluation subroutine string and eval:
   sub {
   my $number = $_[0]->{number};
   my $plus = $_[0]->{plus};
+  my $_matched_string = MATCHED_STRING($_[1]);
   subroutine
   }
 
@@ -575,21 +580,28 @@ is a leaf rule, which only gets one argument to its subroutine:
 
   sub {
   my $_ = $_[0];
+  my $_matched_string = MATCHED_STRING($_[1]);
   subroutine
   }
+
+The variable, $_matched_string is set to the corresponding
+matched string of the rule and the rule's descendants.  For leaf rules
+this is the same as $_[0] .
 
 Evaluation is only done after parsing unlike the option of during parsing
 found in Parse::Stallion.
 
-=head3 PARSE_MATCH
-xyzzy, change this section
+=head3 STRING_MATCH, MATCH_ONCE, MATCH_MIN_FIRST
 
-By putting =PM within a rule (or subrule), the parse_match is used
+By putting =SM within a rule (or subrule), the string match is used
 instead of the returned or generated values.
 
-   ab = (x.({qr/\d/} =PM) qr/\d/) S{$x}; #Will return a string
+   ab = (x.({qr/\d/} =SM) qr/\d/) S{$x}; #Will return a string
 
    cd = (y.{qr/\d/} qr/\d/) S{$y}; #Will return hash ref to an array ref
+
+Likewise, =MO does MATCH_ONCE and =MMF does MATCH_MIN_FIRST.  These are
+described in the Parse::Stallion documentation.
 
 =head3 COMMENTS
 
@@ -608,7 +620,24 @@ A PARSE_BACKTRACK routine can follow via a B{ sub {...}}B.
 
 =head1 VERSION
 
-0.5
+0.6
+
+=head1 AUTHOR
+
+Arthur Goldstein, E<lt>arthur@acm.orgE<gt>
+
+=head1 ACKNOWLEDGEMENTS
+
+Julio Otuyama
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (C) 2007-9 by Arthur Goldstein.  All Rights Reserved.
+
+This module is free software. It may be used, redistributed and/or modified
+under the terms of the Perl Artistic License
+(see http://www.perl.com/perl/misc/Artistic.html)
+
 
 =head1 SEE ALSO
 

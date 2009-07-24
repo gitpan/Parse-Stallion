@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #Copyright 2008-9 Arthur S Goldstein
-use Test::More tests => 70;
+use Test::More tests => 71;
 
 BEGIN { use_ok('Parse::Stallion::EBNF') };
 
@@ -514,6 +514,16 @@ is($value, 3, 'did simple dot alias addition');
    my $result_3 = $parser_3->parse_and_evaluate('1 + 6');
 
 is ($result_3, 7, 'from parse::stallion doc');
+
+   my $grammar_4 = 'start = (left.number qr/\s*\+\s*/ right.number)
+        S{return $_matched_string}S;
+      number = qr/\d+/;';
+
+   my $parser_4 = ebnf_new Parse::Stallion::EBNF($grammar_4);
+
+   my $result_4 = $parser_4->parse_and_evaluate('1 + 6');
+
+is ($result_4, '1 + 6', 'matched_string');
 
 my $frules=<<'END';
 start = x_8ff;

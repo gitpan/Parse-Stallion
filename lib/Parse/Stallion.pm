@@ -48,6 +48,7 @@ sub new {
   return bless $parsing_info, $class;
 }
 
+
 sub parse_leaf {
   my $parsing_info = shift;
   my $parameters = shift;
@@ -191,7 +192,8 @@ sub parse {
   if ($rule->{$start_rule}->{leaf_rule}) {
     return $parsing_info->parse_leaf($parameters, $start_rule);
   }
-  my $parse_trace = $parameters->{parse_trace};
+  my $parse_trace_routine = $parameters->{parse_trace_routine}
+   || $parse_stallion->{parse_trace_routine};
   my $parse_hash = $parameters->{parse_hash};
   my $parse_this_ref = $parse_hash->{parse_this_ref} =
    $parameters->{parse_this_ref};
@@ -284,25 +286,19 @@ sub parse {
   my $current_rule = $rule->{$current_node_name};
   my $end_parse_now = 0;
   my $tree_size = 1;
+  $parse_hash->{__current_node_ref} = \$current_node;
+  $parse_hash->{__current_node_name_ref} = \$current_node_name;
+  $parse_hash->{__moving_forward_ref} = \$moving_forward;
+  $parse_hash->{__moving_down_ref} = \$moving_down;
+  $parse_hash->{__current_position_ref} = \$current_position;
+  $parse_hash->{__message_ref} = \$message;
+  $parse_hash->{__tree} = $tree;
+  $parse_hash->{__steps_ref} = \$steps;
 
   while (($steps < $max_steps) && $current_node) {
     while ($current_node && (++$steps <= $max_steps)) {
-      if ($parse_trace) {
-        my $parent_step = 0;
-        if ($current_node->{parent}) {
-          $parent_step = $current_node->{parent}->{steps};
-        }
-        push @$parse_trace, {
-         rule_name => $current_node_name,
-         moving_forward => $moving_forward,
-         moving_down => $moving_down,
-         position => $current_position,
-         node_creation_step => $current_node->{steps},
-         parent_node_creation_step => $parent_step,
-         message => $message,
-         tree => $tree->stringify,
-        };
-        $message = '';
+      if ($parse_trace_routine) {
+        &{$parse_trace_routine}($parse_hash);
       }
       if ($moving_forward) {
         if ($current_rule->{or_rule}) {
@@ -405,7 +401,7 @@ sub parse {
         }
         if ($move_back_to_child) {
           $move_back_to_child = 0;
-          $message .= " Backtracking to child" if $parse_trace;
+          $message .= " Backtracking to child" if $parse_trace_routine;
           $moving_down = 1;
           $moving_forward = 0;
           pop @bottom_up_left_to_right if $bottom_up;
@@ -422,13 +418,13 @@ sub parse {
   
             if ($fast_move_back) {
               $remove_node = 1;
-              $message .= ". Fast Move Back " if $parse_trace;
+              $message .= ". Fast Move Back " if $parse_trace_routine;
             }
             else {
               $move_back_mode = 1;
               $not_move_back_mode = 0;
               $current_node->{__move_back_to} = 1;
-              $message .= ". Move Back Mode Enabled " if $parse_trace;
+              $message .= ". Move Back Mode Enabled " if $parse_trace_routine;
             }
           }
         }
@@ -461,11 +457,11 @@ sub parse {
             else {$match = $1;}
             $continue_forward = 1;
             $current_position = pos $$parse_this_ref;
-            $message .= 'Leaf matched' if $parse_trace;
+            $message .= 'Leaf matched' if $parse_trace_routine;
           }
           else {
             $continue_forward = 0;
-            $message .= 'Leaf not matched' if $parse_trace;
+            $message .= 'Leaf not matched' if $parse_trace_routine;
           }
         }
         else {
@@ -514,7 +510,7 @@ sub parse {
           $current_rule = $rule->{$current_node_name};
           $message = "Creating child $new_rule_name on step $steps for ".
            "node created on step "
-           .$current_node->{steps} if $parse_trace;
+           .$current_node->{steps} if $parse_trace_routine;
         }
         else {
           $continue_forward = 1;
@@ -533,13 +529,13 @@ sub parse {
           delete $position_tree_size{$current_position};
         }
         $message .= " Removed node created on step ".$current_node->{steps}
-         if $parse_trace;
+         if $parse_trace_routine;
         $parse_hash->{parse_match} = $current_node->{parse_match};
         if ($move_back_mode && $current_node->{__move_back_to}) {
           $move_back_mode = 0;
           $not_move_back_mode = 1;
           $message .= ". Move Back Mode Completed"
-           if $parse_trace;
+           if $parse_trace_routine;
         }
         $current_node = $current_node->{parent};
         if (defined $current_node) {
@@ -572,8 +568,8 @@ sub parse {
          && ($not_any_minimum_child || ($parent->{child_count} >
          $rule->{$parent->{name}}->{minimum_child}))
          ) {
-          $message .= " Last child empty " if $parse_trace;
-          $message .= " Child of multiple cannot be empty " if $parse_trace;
+          $message .= " Last child empty, Child of multiple cannot be empty "
+           if $parse_trace_routine;
           $moving_forward = 0;
           $moving_down = 1;
         }
@@ -585,13 +581,13 @@ sub parse {
             if ($parse_stallion->new_evaluate_tree_node($parameters)) {
               $moving_forward = 0;
               $moving_down = 1;
-              $message .= " Node rejected" if $parse_trace;
+              $message .= " Node rejected" if $parse_trace_routine;
               next;
             }
           }
             push @bottom_up_left_to_right, $current_node if $bottom_up;
             $message .= " Completed node created on step ".
-             $current_node->{steps} if $parse_trace;
+             $current_node->{steps} if $parse_trace_routine;
             $moving_down = 0;
             $moving_forward = 1;
             $current_node->{position_when_completed} = $current_position;
@@ -615,19 +611,19 @@ sub parse {
       $current_node = $tree;
       $current_node_name = $current_node->{name};
       $message .= ' . At top of tree but did not parse entire object'
-       if $parse_trace;
+       if $parse_trace_routine;
       pop @bottom_up_left_to_right if $bottom_up;
       if ($any_match_once
        && $rule->{$current_node_name}->{match_once}) {
         if ($fast_move_back) {
           $current_node = undef;
-          $message .= ". Fast Move Back " if $parse_trace;
+          $message .= ". Fast Move Back " if $parse_trace_routine;
         }
         else {
           $move_back_mode = 1;
           $not_move_back_mode = 0;
           $current_node->{__move_back_to} = 1;
-          $message .= ". Move Back Mode Enabled " if $parse_trace;
+          $message .= ". Move Back Mode Enabled " if $parse_trace_routine;
         }
       }
     }
@@ -662,10 +658,11 @@ sub parse {
 
 package Parse::Stallion;
 require Exporter;
-our $VERSION = '1.00';
+our $VERSION = '1.01';
 our @ISA = qw(Exporter);
 our @EXPORT =
- qw(A AND O OR LEAF L MATCH_MIN_FIRST MATCH_ONCE M MULTIPLE OPTIONAL
+ qw(A AND O OR LEAF L MATCHED_STRING
+    MATCH_MIN_FIRST MATCH_ONCE M MULTIPLE OPTIONAL
     ZERO_OR_ONE Z
     E EVALUATION U UNEVALUATION PF PARSE_FORWARD PB PARSE_BACKTRACK
     RULE_INFO R TERMINAL TOKEN
@@ -684,6 +681,7 @@ sub new {
   bless $self, $class;
   $self->{separator} = '__XZ__';
   $self->{max_steps} = $parameters->{max_steps} || 1000000;
+  $self->{parse_trace_routine} = $parameters->{parse_trace_routine} || undef;
   $self->{multiple_rule_mins} = 0;
   $self->{self} = $self;
   if ($self->{no_evaluation} = $parameters->{no_evaluation} || 0) {
@@ -746,6 +744,26 @@ sub parse_and_evaluate {
   $parameters->{parse_hash} = $parameters->{parse_hash} || {};
   $parameters->{parse_hash}->{rule_info} = $self->rule_info_hash_ref;
   my $parser_results;
+  if ($parameters->{parse_trace}) {
+    $parameters->{parse_trace_routine} = sub {
+      my $parse_hash = shift;
+      my $parent_step = 0;
+      my $current_node = ${$parse_hash->{__current_node_ref}};
+      if ($current_node->{parent}) {
+        $parent_step = $current_node->{parent}->{steps};
+      }
+      push @{$parameters->{parse_trace}}, {
+       rule_name => ${$parse_hash->{__current_node_name_ref}},
+       moving_forward => ${$parse_hash->{__moving_forward_ref}},
+       moving_down => ${$parse_hash->{__moving_down_ref}},
+       position => ${$parse_hash->{__current_position_ref}},
+       node_creation_step => $current_node->{steps},
+       parent_node_creation_step => $parent_step,
+       message => ${$parse_hash->{__message_ref}},
+       tree => $parse_hash->{__tree}->stringify,
+      };
+    };
+  }
   $parser_results = eval {$parser->parse($parameters)};
   if ($@) {croak ($@)};
   my $to_return;
@@ -959,6 +977,7 @@ sub add_rule {
     }
     elsif (ref $sub_rule eq 'ARRAY' && $sub_rule->[0] eq 'SEVAL') {
       $self->{rule}->{$rule_name}->{string_evaluation} = $sub_rule->[1];
+      $self->{rule}->{$rule_name}->{matched_string} = $sub_rule->[2];
     }
     elsif (ref $sub_rule eq 'ARRAY' && $sub_rule->[0] eq 'UNEVAL') {
       if ($self->{rule}->{$rule_name}->{parsing_unevaluation}) {
@@ -1162,6 +1181,9 @@ sub add_rule {
             croak "String Evaluation of rule $rule_name cannot handle ".
              "parameter with name $param";
           }
+        }
+        if (my $ms = $self->{rule}->{$rule_name}->{matched_string}) {
+          $sub .= "my \$".$ms." = MATCHED_STRING(\$_[1]);\n";
         }
       }
       $sub .= $self->{rule}->{$rule_name}->{string_evaluation}."}";
@@ -1423,6 +1445,14 @@ sub new_unevaluate_tree_node {
   }
 }
 
+sub MATCHED_STRING {
+  my $parse_hash = shift;
+  my $node = $parse_hash->{current_node};
+  return substr(${$parse_hash->{parse_this_ref}},
+   $node->{position_when_entered},
+   $node->{position_when_completed} - $node->{position_when_entered});
+}
+
 sub new_evaluate_tree_node {
   my $self = shift;
   my $parameters = shift;
@@ -1445,7 +1475,7 @@ sub new_evaluate_tree_node {
     elsif ($rule->{use_string_match}) {
       $params_to_eval = substr(${$parse_hash->{parse_this_ref}},
        $node->{position_when_entered},
-       $node->{position_when_completed} - $node->{position_when_entered});;
+       $node->{position_when_completed} - $node->{position_when_entered});
     }
     my $alias = $node->{alias};
 
@@ -1551,6 +1581,7 @@ Parse::Stallion - EBNF based regexp backtracking parser and tree evaluator.
     traversal_only => 0, #default 0
     unreachable_rules_allowed => 0, #default 0
     fast_move_back => 1, #default 1 unless any unevaluation/parse_backtrack
+    parse_trace_routine => sub {...}, #default undef
   });
 
   my $parse_info = {}; # optional, little impact on performance
@@ -1559,8 +1590,9 @@ Parse::Stallion - EBNF based regexp backtracking parser and tree evaluator.
   my $result = $stallion->parse_and_evaluate($given_string,
     # usually omit the following
    {max_steps => 30000, #default from parser's creation
-    parse_info => $parse_info, #if provided, parse info returned
-    parse_trace => $parse_trace, # if provided, trace returned
+    parse_info => $parse_info, # optional, parse info returned
+    parse_trace => $parse_trace, # optional, trace returned
+    parse_trace_routine => sub {...}, # optional, default from parser
     start_position => 0, #default 0
     start_rule => $start_rule, # default from parser creation
     parse_hash => $parse_hash, #used as parse_hash in called routines
@@ -1646,7 +1678,7 @@ Reading a grammar from a string instead of functions:
    use Parse::Stallion::EBNF; #see documentation on Parse::Stallion::EBNF
 
    my $grammar_3 = 'start = (left.number qr/\s*\+\s*/ right.number)
-      S{return $_[0]->{left} + $_[0]->{right}}S;
+      S{return $left + $right}S;
      number = qr/\d+/;';
 
    my $parser_3 = ebnf_new Parse::Stallion::EBNF($grammar_3);
@@ -1980,7 +2012,7 @@ filled in during parse_and_evaluate.
   $parse_info->{parse_backtrack_value};
    # 0 unless parse backtrack call ends parse
 
-An entry in $parse_trace looks like:
+An entry in $parse_trace contains:
 
   $parse_trace->[$step]->{rule_name}
   $parse_trace->[$step]->{moving_forward} # 0 if backtracking
@@ -1990,6 +2022,27 @@ An entry in $parse_trace looks like:
   $parse_trace->[$step]->{parent_node_creation_step}
   $parse_trace->[$step]->{message} # informative message on previous step
   $parse_trace->[$step]->{tree} # stringified snapshot of parse tree
+
+=head4 PARSE_TRACE_ROUTINE
+
+A parse_trace_routine can be passed in as a parameter that is called once
+at the beginning of every parse step.
+This overrides the parse_trace parameter, because this uses a default
+parse_trace_routine to record the information for each parse step.
+
+Example:
+
+  my $a_grammar = new Parse::Stallion({ start => M(qr/a/) });
+
+  my $result = $a_grammar->parse_and_evaluate('aab',
+    {parse_trace_routine => sub {
+      print 'at step '.${$_[0]->{__step_ref}}."\n";
+      print 'moving forward is '.${$_[0]->{__moving_forward_ref}}."\n";
+      print 'position is '.${$_[0]->{__current_position_ref}}."\n";
+      }
+     }
+   );
+   # will print trace of parse
 
 =head4 STRINGIFIED PARSE TREE
 
@@ -2078,7 +2131,7 @@ If the node is a leaf regexp that has a parenthesized match inside,
 what is matched by the first parenthesized match is the parameter.
 Else if the node is a leaf then what is matched by the leaf is
 the first parameter.
-Else if 'USE_STRING_MATCH()' has been set for the node's rule,
+Else if 'USE_STRING_MATCH' has been set for the node's rule,
 the substring equivalent to a join
 of all the matched strings of the nodes' descendants is the parameter.
 
@@ -2101,7 +2154,8 @@ ref throughout a specific parse so one can store values there to pass
 among the routines.  One can pass in a hash ref, with some preset keys,
 to be used as the parse_hash for a given parse_and_evaluate call.
 
-There are several keys that are set
+The following keys are set by the module, changing them may break the
+parse,
 
    parse_this_ref # Reference to object being parsed
    current_position # The current position of the object being parsed
@@ -2114,6 +2168,16 @@ There are several keys that are set
    parse_match # for parse_backtrack routine, match from parse_forward
    rule_name # Name of rule, may be internally generated
    rule_info # Hash of rule names which have RULE_INFO set
+   #The following are used by the default parse_trace_routine when
+   #given the parameter parse_trace
+   __current_node_ref # Reference to current node
+   __current_node_name_ref # Reference to current node's rule name
+   __moving_forward_ref # Reference to if parse is moving forward
+   __moving_down_ref # Reference to if parse is moving down
+   __current_position_ref # Reference to current position
+   __message_ref # Reference to notes on previous parse step
+   __tree # Currently created tree
+   __steps_ref # Reference to number of steps taken
 
 Any future parameters will be given double underscores at the start
 of their names.
@@ -2153,12 +2217,23 @@ Comments refer to the parameters of the evaluation subroutine.
 
    A(qr/a/, qr/b/, E(sub {...})) #$_[0]->{''}->['a','b']
 
-   A(qr/a/, qr/b/, E(sub {...}), USE_STRING_MATCH()) # $_[0] = 'ab'
+   A(qr/a/, qr/b/, E(sub {...}), USE_STRING_MATCH) # $_[0] = 'ab'
 
    A({f=>qr/a/}, {f=>qr/b/}, E(sub {...})) # $_[0]->{'f'} = ['a','b']
 
    A('rule1', 'rule2', 'rule3', E(sub {...}))
     #params are $_[0]->{rule1}, $_[0]->{rule2}, $_[0]->{rule3}
+
+=head3 MATCHED_STRING
+
+A function MATCHED_STRING is provided that returns the string
+matched by the node/node's descendents.  It takes as an argument
+the $parse_hash, the second parameter.
+
+   rule => A({sub_rule_1 => qr/art/}, {sub_rule_2 => qr/hur/},
+    E(sub {$matched_string = MATCHED_STRING($_[1]); ...
+     # $matched_string == 'arthur' == $_[0]->{sub_rule_1} . $_[0]->{sub_rule_2}
+     }));
 
 =head3 LOCATION
 
@@ -2469,11 +2544,12 @@ as an array, if the value is 0, it would be passed as a scalar.
 Instead of passing an evaluation subroutine, one can pass in the
 string of a subroutine via STRING_EVALAUATION (or SE).  The string
 is modified so that the passed in parameters become local variables.
+The second parameter is optional.
 
 Example:
 
     a_rule => A('x_1', 'x_2', 'x_3', 'x_1'),
-      SE('#comment'));
+      SE('#comment', 'xx'));
 
 results in the evaluation routine equivalent to:
 
@@ -2481,6 +2557,7 @@ results in the evaluation routine equivalent to:
      $x_1 = $_[0]->{x_1};
      $x_2 = $_[0]->{x_2};
      $x_3 = $_[0]->{x_3};
+     $xx = MATCHED_STRING($_[1]);
      #comment
      }
 
@@ -2713,9 +2790,9 @@ This would keep the parse tree small.
 
 The following are EXPORTED from this module:
 
- A AND E EVALUATION L LEAF LEAF_DISPLAY LOCATION MATCH_MIN_FIRST
- MATCH_ONCE M MULTIPLE O OPTIONAL OR PARSE_FORWARD PARSE_BACKTRACK PB
- PF RULE_INFO R SE STRING_EVALUATION TERMINAL TOKEN U
+ A AND E EVALUATION L LEAF LEAF_DISPLAY LOCATION MATCHED_STRING
+ MATCH_MIN_FIRST MATCH_ONCE M MULTIPLE O OPTIONAL OR PARSE_FORWARD
+ PARSE_BACKTRACK PB PF RULE_INFO R SE STRING_EVALUATION TERMINAL TOKEN U
  UNEVALUATION USE_STRING_MATCH Z ZERO_OR_ONE
 
 =head1 PERL Requirements
@@ -2727,7 +2804,7 @@ of those modules is required outside of the test cases for installation.
 
 =head1 VERSION
 
-1.00
+1.01
 
 =head1 AUTHOR
 

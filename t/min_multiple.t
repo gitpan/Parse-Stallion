@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #Copyright 2008-9 Arthur S Goldstein
-use Test::More tests => 50;
+use Test::More tests => 53;
 BEGIN { use_ok('Parse::Stallion') };
 #use Data::Dumper;
 
@@ -327,6 +327,71 @@ is ($tab, 2, 'line tab 2');
 
   $result = $mo_parser_y->parse_and_evaluate('ttttu');
   is ($s, '0000', 'match once fast move back');
+
+  our $first;
+  our $second;
+  my $ms_parser = new Parse::Stallion(
+   {   rule => A({sub_rule_1 => qr/art/}, {sub_rule_2 => qr/hur/},
+    E(sub {$matched_string = MATCHED_STRING($_[1]);
+      $first = $matched_string;
+      $second = $_[0]->{sub_rule_1} . $_[0]->{sub_rule_2};
+     # $matched_string == 'arthur' == $_[0]->{sub_rule_1} . $_[0]->{sub_rule_2}
+     }))});
+
+   $result = $ms_parser->parse_and_evaluate('arthur');
+  is ($first, $second, 'matched string');
+  is ($first, 'arthur', 'matched string arthur');
+
+my $a_grammar = new Parse::Stallion(
+ { start => M(qr/a/) });
+
+our $jj = '';
+$result = $a_grammar->parse_and_evaluate('aab',
+ {parse_trace_routine => sub {
+#   print STDERR 'at step '.${$_[0]->{__step_ref}}."\n";
+#   print STDERR 'moving forward is '.${$_[0]->{__moving_forward_ref}}."\n";
+#   print STDERR 'position is '.${$_[0]->{__current_position_ref}}."\n";
+   $jj .= 'at step '.${$_[0]->{__steps_ref}}."\n";
+   $jj .= 'moving forward is '.${$_[0]->{__moving_forward_ref}}."\n";
+   $jj .= 'position is '.${$_[0]->{__current_position_ref}}."\n";
+   }
+  }
+);
+
+is ($jj, 'at step 1
+moving forward is 1
+position is 0
+at step 2
+moving forward is 1
+position is 1
+at step 3
+moving forward is 1
+position is 2
+at step 4
+moving forward is 0
+position is 2
+at step 5
+moving forward is 0
+position is 2
+at step 6
+moving forward is 0
+position is 2
+at step 7
+moving forward is 0
+position is 1
+at step 8
+moving forward is 0
+position is 1
+at step 9
+moving forward is 0
+position is 1
+at step 10
+moving forward is 0
+position is 0
+at step 11
+moving forward is 0
+position is 0
+', 'parse_trace_routine');
 
 print "\nAll done\n";
 

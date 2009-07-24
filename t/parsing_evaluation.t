@@ -519,6 +519,14 @@ my %pf_arg_rules = (
       delete $pf_stored_parameters->[0]->{current_node};
       delete $pf_stored_parameters->[0]->{__blocked};
       delete $pf_stored_parameters->[0]->{parse_stallion};
+      delete $pf_stored_parameters->[0]->{__moving_forward_ref};
+      delete $pf_stored_parameters->[0]->{__tree};
+      delete $pf_stored_parameters->[0]->{__message_ref};
+      delete $pf_stored_parameters->[0]->{__steps_ref};
+      delete $pf_stored_parameters->[0]->{__current_position_ref};
+      delete $pf_stored_parameters->[0]->{__moving_down_ref};
+      delete $pf_stored_parameters->[0]->{__current_node_ref};
+      delete $pf_stored_parameters->[0]->{__current_node_name_ref};
 #use Data::Dumper;print STDERR Dumper(\@_)." pf3 \n";
 is_deeply($pf_stored_parameters,
 [
@@ -541,6 +549,14 @@ is_deeply($pf_stored_parameters,
       delete $pb_stored_parameters->[0]->{current_node};
       delete $pf_stored_parameters->[0]->{__blocked};
       delete $pf_stored_parameters->[0]->{parse_stallion};
+      delete $pf_stored_parameters->[0]->{__moving_forward_ref};
+      delete $pf_stored_parameters->[0]->{__tree};
+      delete $pf_stored_parameters->[0]->{__message_ref};
+      delete $pf_stored_parameters->[0]->{__steps_ref};
+      delete $pf_stored_parameters->[0]->{__current_position_ref};
+      delete $pf_stored_parameters->[0]->{__moving_down_ref};
+      delete $pf_stored_parameters->[0]->{__current_node_ref};
+      delete $pf_stored_parameters->[0]->{__current_node_name_ref};
 #use Data::Dumper;print STDERR Dumper(\@_)." pb3 \n";
 is_deeply($pb_stored_parameters,
 [
