@@ -658,7 +658,7 @@ sub parse {
 
 package Parse::Stallion;
 require Exporter;
-our $VERSION = '1.01';
+our $VERSION = '1.02';
 our @ISA = qw(Exporter);
 our @EXPORT =
  qw(A AND O OR LEAF L MATCHED_STRING

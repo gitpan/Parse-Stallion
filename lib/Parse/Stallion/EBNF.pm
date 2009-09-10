@@ -417,7 +417,7 @@ Parse::Stallion::EBNF - Output/Input parser in Extended Backus Naur Form.
   my $rule_parser = ebnf_new Parse::Stallion::EBNF($rules);
 
   my $value = $rule_parser->parse_and_evaluate('1 + 6');
-  #$value should be 7
+  # $value should be 7
 
 =head1 DESCRIPTION
 

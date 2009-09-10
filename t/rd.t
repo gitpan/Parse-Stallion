@@ -1598,6 +1598,8 @@ $defactil_parser->start("abxcd");
 delete $item_hash2->{__ACTION1__}; # misbehavior?
 delete $item_hash->{__ACTION1__};  # Parse::RecDescent preserves the list at
  # a certain state but not the hash
+delete $rd_item_hash2->{__ACTION1__}; # Some Parse::RecDescents have this
+delete $rd_item_hash->{__ACTION1__};  # Some Parse::RecDescents have this
 is($#{$item_list}, 7, 'item list count of deferred and action');
 is($#{$item_list2}, 4, 'item list count of deferred and action');
 is_deeply($item_list, $rd_item_list, 'item list of deferred and action');

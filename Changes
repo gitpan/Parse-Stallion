@@ -1,5 +1,9 @@
 Revision history for Perl extension Parse::Stallion.
 
+1.02
+    Modified 2 test cases of Parse::Stallion::RD (no code change) that
+    caused errors on some systems.
+   
 1.01
     _matched_string in Parse::Stallion::EBNF
 
