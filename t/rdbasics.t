@@ -12,8 +12,9 @@
 BEGIN { $| = 1; print "1..8\n"; }
 END {print "not ok 1\n" unless $loaded;}
 
-eval "use Parse::RecDescent";
-my $skip = $@;
+#eval "use Parse::RecDescent";
+#my $skip = $@;
+my $skip;
 eval "use Text::Balanced";
 $skip .= $@;
 eval "use Parse::Stallion::RD";
