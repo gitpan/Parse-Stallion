@@ -77,7 +77,7 @@ my $calculator_parser = new Parse::Stallion(
 
 my $result =
  $calculator_parser->parse_and_evaluate("7+4");
-use Data::Dumper;print "result is ".Dumper($result)."\n";
+#use Data::Dumper;print "result is ".Dumper($result)."\n";
 is_deeply ($result, 
 {                            
           'end_of_string' => '',

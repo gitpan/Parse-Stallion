@@ -183,10 +183,10 @@ my $h = new Parse::Stallion($g);
 
 $result = $h->parse_and_evaluate('xx');
 is_deeply($result, undef, 'no double x on double x');
-use Data::Dumper; print Dumper($result);
+#use Data::Dumper; print Dumper($result);
 $result = $h->parse_and_evaluate('x');
 is_deeply($result, 'x', 'no double x on single x');
-use Data::Dumper; print Dumper($result);
+#use Data::Dumper; print Dumper($result);
 $result = $h->parse_and_evaluate('yy');
 is_deeply($result, 'yy', 'no double x on double y');
 

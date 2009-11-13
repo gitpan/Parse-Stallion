@@ -658,7 +658,7 @@ sub parse {
 
 package Parse::Stallion;
 require Exporter;
-our $VERSION = '1.03';
+our $VERSION = '1.04';
 our @ISA = qw(Exporter);
 our @EXPORT =
  qw(A AND O OR LEAF L MATCHED_STRING
@@ -2804,7 +2804,7 @@ of those modules is required outside of the test cases for installation.
 
 =head1 VERSION
 
-1.01
+1.04
 
 =head1 AUTHOR
 

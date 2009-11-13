@@ -1,5 +1,8 @@
 Revision history for Perl extension Parse::Stallion.
 
+1.04
+    Removed use Data::Dumper from 3 test files.
+
 1.03
     Removed many test cases of RecDescent because Parse::RecDescent's code
     changes and probably not good to have this depend on that if not needed.

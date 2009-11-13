@@ -244,7 +244,7 @@ my $rd_result;
 my $r_result;
 my $result;
 
-use Data::Dumper;
+#use Data::Dumper;
 $r_result = $m3_parser->start("");
 $rd_result = $m3rd_parser->start("");
 is_deeply($r_result, $rd_result, "empty m3");
