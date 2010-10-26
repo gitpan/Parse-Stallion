@@ -1,5 +1,10 @@
 Revision history for Perl extension Parse::Stallion.
 
+1.05
+    Minor change in regexp handling.
+
+    Fixed test case in simple_calc.t for new perl way of displaying regexp.
+
 1.04
     Removed use Data::Dumper from 3 test files.
 

@@ -1,4 +1,4 @@
-#Copyright 2007-9 Arthur S Goldstein
+#Copyright 2007-10 Arthur S Goldstein
 
 package Parse::Stallion::Talon;
 use Carp;
@@ -452,7 +452,7 @@ sub parse {
         }
         elsif (my $x = $new_rule->{regex_match}) {
           pos $$parse_this_ref = $current_position;
-          if ($$parse_this_ref =~ m/$x/cg) {
+          if ($$parse_this_ref =~ m/$x/g) {
             if (defined $2) {$match = $2;}
             else {$match = $1;}
             $continue_forward = 1;
@@ -658,7 +658,7 @@ sub parse {
 
 package Parse::Stallion;
 require Exporter;
-our $VERSION = '1.04';
+our $VERSION = '1.05';
 our @ISA = qw(Exporter);
 our @EXPORT =
  qw(A AND O OR LEAF L MATCHED_STRING
@@ -2804,7 +2804,7 @@ of those modules is required outside of the test cases for installation.
 
 =head1 VERSION
 
-1.04
+1.05
 
 =head1 AUTHOR
 
@@ -2816,7 +2816,7 @@ Damian Conway, Christopher Frenz, and Greg London.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2007-9 by Arthur Goldstein.  All Rights Reserved.
+Copyright (C) 2007-10 by Arthur Goldstein.  All Rights Reserved.
 
 This module is free software. It may be used, redistributed and/or modified
 under the terms of the Perl Artistic License

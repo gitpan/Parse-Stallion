@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-#Copyright 2007-9 Arthur S Goldstein
+#Copyright 2007-10 Arthur S Goldstein
 use Test::More tests => 10;
 BEGIN { use_ok('Parse::Stallion') };
 
@@ -124,17 +124,21 @@ is ($result, undef, "empty");
 use_ok('Parse::Stallion::EBNF');
 my $ebnf = ebnf Parse::Stallion::EBNF($short_calculator_parser);
 
+my $numb_regexp = qr/\s*[+\-]?(\d+(\.\d*)?|\.\d+)\s*/;
+my $t_or_d_regexp = qr/\s*[*\/]\s*/;
+my $p_or_m_regexp = qr/\s*[\-+]\s*/;
+
 is ($ebnf,
 'start_rule = expression -EVALUATION-  ;
 expression = term , expression__XZ__1 -EVALUATION-  ;
 term = number , term__XZ__1 -EVALUATION-  ;
-number = (?-xism:\s*[+\-]?(\d+(\.\d*)?|\.\d+)\s*) -EVALUATION-  ;
+number = '.$numb_regexp.' -EVALUATION-  ;
 term__XZ__1 = { term__XZ__2 } ;
 term__XZ__2 = times_or_divide , number ;
-times_or_divide = (?-xism:\s*[*/]\s*) ;
+times_or_divide = '.$t_or_d_regexp.' ;
 expression__XZ__1 = { expression__XZ__2 } ;
 expression__XZ__2 = plus_or_minus , term ;
-plus_or_minus = (?-xism:\s*[\-+]\s*) ;
+plus_or_minus = '.$p_or_m_regexp.' ;
 ', "ebnf test");
 
 my %calculator_with_end_rules = (
