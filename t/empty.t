@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-#Copyright 2007-9 Arthur S Goldstein
+#Copyright 2007-10 Arthur S Goldstein
 use Test::More tests => 13;
 use Carp;
 BEGIN { use_ok('Parse::Stallion') };
@@ -212,10 +212,10 @@ like ($@, qr/contains separator/,'separator named rule');
 
    my $one_grammar = {start => L(qr/1/)};
    my $parser = new Parse::Stallion($one_grammar);
-   my $partial_parser = new Parse::Stallion($one_grammar, 
-     {need_not_match_whole_string => 1});
+   my $partial_parser = new Parse::Stallion($one_grammar);
    $one_results = $parser->parse_and_evaluate('12');  # does not parse
-   $onep_results = $partial_parser->parse_and_evaluate('12');  # parses
+   $onep_results = $partial_parser->parse_and_evaluate('12',
+    {match_length => 0});  # parses
 
 is($one_results, undef, "no partial match");
 is($onep_results, '1', "partial match");

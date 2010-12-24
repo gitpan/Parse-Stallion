@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-#Copyright 2007-9 Arthur S Goldstein
+#Copyright 2007-10 Arthur S Goldstein
 use Test::More tests => 31;
 BEGIN { use_ok('Parse::Stallion') };
 #use Data::Dumper;
@@ -340,7 +340,7 @@ $x
 is ($result->{parse_succeeded}, 0, 'look ahead on x not to parse');
 
 #my %bad_and = (
-#  start => AND(qr/a/, PF(sub {return (1, undef, $_[0]->{current_position})}))
+#  start => AND(qr/a/, PF(sub {return (1, undef, 0)}))
 #);
 
 #eval {my $bad_and_parser = new Parse::Stallion(\%bad_and);};
@@ -351,12 +351,11 @@ my %two_pf_and = (
     L(PF(sub {my $parameters = shift;
      my $current_position = $parameters->{current_position};
      $parameters->{parent_node}->{x} = 2;
-     return 1, undef, $current_position;
+     return 1, undef, 0;
     })),
     {f => L(PF(sub {my $parameters = shift;
      my $current_position = $parameters->{current_position};
-     return 1, $parameters->{parent_node}->{x}+1,
-      $current_position;
+     return 1, $parameters->{parent_node}->{x}+1, 0;
     }))},
     E(sub {return $_[0]->{f}}),
     ),
@@ -374,9 +373,9 @@ sub increment_hashes {
 #use Data::Dumper;print STDERR "ihp ".Dumper(\@_)."\n";
   my $parameters = shift;
   my $current_position = $parameters->{current_position};
-  $latest_node_hash = ++$parameters->{parent_node}->{x};
+  $latest_node_hash = ++${$parameters->{__current_node_ref}}->{x};
   $latest_parse_hash = ++$parameters->{x};
-  return 1, undef, $current_position;
+  return 1, undef, 0;
 }
 
 my %check_hashes = (
@@ -394,7 +393,7 @@ is ($latest_node_hash, 3, 'check hashes node');
 is ($latest_parse_hash, 4, 'check hashes parse');
 
 my %bad_leaf = (
-  start => L(qr/a/, PF(sub {return (1, undef, $_[0]->{current_position})}),
+  start => L(qr/a/, PF(sub {return (1, undef, 0)}),
    PF(sub {return 1}))
 );
 
@@ -484,13 +483,13 @@ my %pf_arg_rules = (
    L(PF(
    sub {
       $_[0]->{parent_node}->{xx} = 1;
-      return (1, 'nn', $_[0]->{current_position});
+      return (1, 'nn', 0);
     }
    )),
    L(PF(
    sub {
 #use Data::Dumper;print STDERR Dumper(\@_)." pf \n";
-      return (1, 'mmm', $_[0]->{current_position});
+      return (1, 'mmm', 0);
     }
    ),
    PB(
@@ -502,7 +501,7 @@ my %pf_arg_rules = (
    L(PF(
    sub {
 #use Data::Dumper;print STDERR Dumper(\@_)." pf2 \n";
-      return (1, ['www'], $_[0]->{current_position});
+      return (1, ['www'], 0);
     }
    ),
    PB(
@@ -526,7 +525,18 @@ my %pf_arg_rules = (
       delete $pf_stored_parameters->[0]->{__current_position_ref};
       delete $pf_stored_parameters->[0]->{__moving_down_ref};
       delete $pf_stored_parameters->[0]->{__current_node_ref};
+      delete $pf_stored_parameters->[0]->{__current_node};
       delete $pf_stored_parameters->[0]->{__current_node_name_ref};
+      delete $pf_stored_parameters->[0]->{__continue_forward_ref};
+      delete $pf_stored_parameters->[0]->{__tree_size_ref};
+      delete $pf_stored_parameters->[0]->{__current_rule_ref};
+      delete $pf_stored_parameters->[0]->{__position_tree_size};
+      delete $pf_stored_parameters->[0]->{__parse_trace_routine};
+      delete $pf_stored_parameters->[0]->{__bottom_up};
+      delete $pf_stored_parameters->[0]->{__initial_position};
+      delete $pf_stored_parameters->[0]->{__bottom_up_left_to_right};
+      delete $pf_stored_parameters->[0]->{__match_length};
+      delete $pf_stored_parameters->[0]->{__parse_this_length};
 #use Data::Dumper;print STDERR Dumper(\@_)." pf3 \n";
 is_deeply($pf_stored_parameters,
 [
@@ -538,7 +548,7 @@ is_deeply($pf_stored_parameters,
           }
         ]
 , 'parse forward parameters with eval');
-      return (1, 'uuu', $_[0]->{current_position});
+      return (1, 'uuu', 0);
     }
    ),
    PB(
@@ -556,7 +566,14 @@ is_deeply($pf_stored_parameters,
       delete $pf_stored_parameters->[0]->{__current_position_ref};
       delete $pf_stored_parameters->[0]->{__moving_down_ref};
       delete $pf_stored_parameters->[0]->{__current_node_ref};
+      delete $pf_stored_parameters->[0]->{__current_node};
       delete $pf_stored_parameters->[0]->{__current_node_name_ref};
+      delete $pf_stored_parameters->[0]->{__continue_forward_ref};
+      delete $pf_stored_parameters->[0]->{__tree_size_ref};
+      delete $pf_stored_parameters->[0]->{__current_rule_ref};
+      delete $pf_stored_parameters->[0]->{__position_tree_size};
+      delete $pf_stored_parameters->[0]->{__parse_trace_routine};
+      delete $pf_stored_parameters->[0]->{__bottom_up};
 #use Data::Dumper;print STDERR Dumper(\@_)." pb3 \n";
 is_deeply($pb_stored_parameters,
 [

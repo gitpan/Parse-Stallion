@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-#Copyright 2007-9 Arthur S Goldstein
+#Copyright 2007-10 Arthur S Goldstein
 use Parse::Stallion;
 
 my %calculator_rules = (
@@ -150,8 +150,8 @@ my $calculator_stallion = new Parse::Stallion(
           return (0, undef);
         }
       }
-      $$input_string_ref = substr($$input_string_ref, length($matched));
-      return (1, $matched, 0 - length($$input_string_ref));
+      $$input_string_ref =~ s/\A($match_rule)//;
+      return (1, $matched, length($matched));
     }
     return 0;
    },
@@ -165,12 +165,8 @@ my $calculator_stallion = new Parse::Stallion(
       $$input_string_ref = $stored_value.$$input_string_ref;
     }
    },
-  initial_position_routine => sub {
-    my $string_ref = shift;
-    return 0 - length($$string_ref);
-  },
-  final_position_routine => sub {
-    return 0;
+  length_routine => sub {
+    return length(${$_[0]});
   }
 });
 

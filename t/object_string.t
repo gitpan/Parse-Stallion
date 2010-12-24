@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-#Copyright 2007-9 Arthur S Goldstein
+#Copyright 2007-10 Arthur S Goldstein
 use Test::More tests => 5;
 BEGIN { use_ok('Parse::Stallion') };
 
@@ -152,7 +152,7 @@ my $calculator_stallion = new Parse::Stallion(
       }
       $$input_string_ref = substr($$input_string_ref, length($matched));
 #print STDERR "matched on $matched\n";
-      return (1, $matched, 0 - length($$input_string_ref));
+      return (1, $matched, length($matched));
     }
     return 0;
    },
@@ -166,11 +166,11 @@ my $calculator_stallion = new Parse::Stallion(
     }
 #print STDERR "pb now have ".$$input_string_ref."\n";
    },
-  initial_position_routine => sub {
-    return 0 - length($_[0]);
-  },
-  final_position_routine => sub {
-    return 0;
+#  initial_position_routine => sub {
+#    return 0 - length($_[0]);
+#  },
+  length_routine => sub {
+    return length(${$_[0]});;
   }
 });
 
@@ -183,7 +183,7 @@ my @parse_trace;
 my $string = '7+4';
 my $result =
  $calculator_stallion->parse_and_evaluate($string, {parse_trace => \@parse_trace});
-print "Result is $result\n";
+#print "Result is $result\n";
 #use Data::Dumper;print STDERR "pt of 7 + 4 is ".Dumper(\@parse_trace)."\n";
 is ($result, 11, "simple plus");
 

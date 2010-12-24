@@ -13,6 +13,7 @@ my $skip = $@;
 $loaded = 1;
 print "ok 1\n";
 
+$skip = 1;
 if ($skip) {
 print "ok 2\n";
 print "ok 3\n";

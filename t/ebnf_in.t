@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-#Copyright 2008-9 Arthur S Goldstein
+#Copyright 2008-10 Arthur S Goldstein
 use Test::More tests => 71;
 
 BEGIN { use_ok('Parse::Stallion::EBNF') };
@@ -622,7 +622,7 @@ $value = $newf_parser->parse_and_evaluate('885');
 is_deeply($value, {i=>[8,8]}, 'newf rules');
 
 my $pf_rules=<<'END';
-pft = (qr/\d/ F{sub {return (1,'x',1)}}F qr/\d/ =SM) S{return $_}S;
+pft = (qr/\d/ F{sub {return (1,'x',0)}}F qr/\d/ =SM) S{return $_}S;
 END
 
 my $pf_parser = ebnf_new Parse::Stallion::EBNF($pf_rules);
@@ -633,7 +633,7 @@ is_deeply($value, '74', 'pf rules');
 
 our $j;
 my $pfb_rules=<<'END';
-pft = (qr/\d/ F{sub {return (1,'x',1)}}F B{sub {$::j='q'; return;}}B
+pft = (qr/\d/ F{sub {return (1,'x',0)}}F B{sub {$::j='q'; return;}}B
   qr/\d/ =SM) S{return $_}S;
 END
 

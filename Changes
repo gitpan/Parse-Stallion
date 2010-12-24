@@ -1,5 +1,39 @@
 Revision history for Perl extension Parse::Stallion.
 
+2.00
+    Added the following parameters:
+     incorporate
+     find_all (only for string input)
+     match_maximum
+     global (now only keeps pos of input if global is set)
+     substitute
+     substitution
+     match_start
+     match_length
+
+   Removed need_not_match_whole_string (replaced by
+    match length, though match_length is in parse_and_evaluate)
+
+   Added the following subroutines:
+    search
+    search_and_substitute
+
+   Required version of Test::More to be at least 0.71 (some unknown early
+   version of Test::More fails on is_deeply in a test).
+
+   Removed final_position_routine
+   Removed initial_position_routine
+   Add length_routine
+
+   Changed required output of parse_forward (3rd result is delta).
+
+   Fixed error with not removing entries in bottom_up_left_to_right with
+    fast move back.
+
+   Removed traversal_only
+
+   start_rule found can be sub rule of itself.
+
 1.05
     Minor change in regexp handling.
 
@@ -10,7 +44,8 @@ Revision history for Perl extension Parse::Stallion.
 
 1.03
     Removed many test cases of RecDescent because Parse::RecDescent's code
-    changes and probably not good to have this depend on that if not needed.
+    changed and probably not good to have tests depend on changing
+    version of other module.
 
 1.02
     Modified 2 test cases of Parse::Stallion::RD (no code change) that

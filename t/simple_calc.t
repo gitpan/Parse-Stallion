@@ -191,8 +191,7 @@ return $_[0]->{expression}}),
  times_or_divide => LEAF(qr/\s*[*\/]\s*/)
 );
 
-my $calculator_end_parser = new Parse::Stallion(\%calculator_with_end_rules,
- {need_not_match_whole_string => 1});
+my $calculator_end_parser = new Parse::Stallion(\%calculator_with_end_rules);
 
 my $pi={final_position => 0};
 
@@ -202,7 +201,8 @@ my $i;
 my @results = ();
 while (($pi->{final_position} != length($string)) && $i++ < 10 ) {
   push @results, $calculator_end_parser->parse_and_evaluate($string,
-   {parse_info => $pi, start_position => $pi->{final_position}});
+   {parse_info => $pi, start_position => $pi->{final_position},
+    match_length => 0});
 }
 
 

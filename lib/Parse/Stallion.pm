@@ -57,47 +57,31 @@ sub parse_leaf {
   my $parse_hash = $parameters->{parse_hash};
   my $parse_this_ref = $parse_hash->{parse_this_ref} =
    $parameters->{parse_this_ref};
-  my $parse_this_length;
-  if (defined $parse_this_ref) {
-    $parse_this_length = length($$parse_this_ref);
-  }
-  else {
-    $parse_this_length = 0;
-  }
+  my $parse_this_length = $parse_hash->{__parse_this_length};
+  my $must_parse_length = $parse_hash->{__match_length};
   my $do_evaluation_in_parsing = $parse_stallion->{do_evaluation_in_parsing};
   my $start_node = $parse_stallion->{rule}->{$start_rule_name};
-  my $initial_position;
-  if (defined $parameters->{start_position}) {
-    $initial_position = $parameters->{start_position};
-  }
-  elsif ($parse_stallion->{initial_position_routine}) {
-    $initial_position = $parse_stallion->{initial_position_routine}
-    ($parse_this_ref, $parse_hash);
-  }
-  else {
-    $initial_position = $parameters->{initial_pos} || 0;
-  }
+  my $initial_position = $parse_hash->{__initial_position};
 
   my $tree;
   my @bottom_up_left_to_right;
   my $current_position;
   my $continue_forward;
   my $match;
+  my $delta_position;
 
   if (my $pf = $start_node->{parse_forward}) {
-    $parse_hash->{parent_node} = {};
-    $parse_hash->{current_position} = $initial_position;
+    $current_position = $parse_hash->{current_position} = $initial_position;
     $parse_hash->{rule_name} = $start_rule_name;
-    ($continue_forward, $match, $current_position) =
-     &{$pf}($parse_hash);
-    if (defined $current_position) {
-      if ($current_position < $initial_position) {
+    ($continue_forward, $match, $delta_position) = &{$pf}($parse_hash);
+    if (defined $delta_position) {
+      if ($delta_position < 0) {
         croak ("Parse forward on $start_rule_name resulted in
-         backward progress ($initial_position, $current_position)");
+         backward progress ($initial_position, $delta_position)");
       }
-    }
-    else {
-      $current_position = $initial_position;
+      else {
+        $current_position += $delta_position;
+      }
     }
   }
   elsif (my $x = $start_node->{regex_match}) {
@@ -127,22 +111,14 @@ sub parse_leaf {
       parse_match => $match,
       child_count => 0
     };
-    my $reject;
     if ($do_evaluation_in_parsing) {
       $parameters->{nodes} = [$tree];
       $parse_hash->{current_position} = $current_position;
-      $reject = $parse_stallion->new_evaluate_tree_node($parameters);
+      if ($parse_stallion->new_evaluate_tree_node($parameters)) {
+        $continue_forward = 0; #rejection
+      }
     }
-    if (defined $reject && $reject) {
-      $continue_forward = 0;
-    }
-    elsif (
-     (($parse_stallion->{final_position_routine} &&
-     (&{$parse_stallion->{final_position_routine}}($parse_this_ref,
-      $current_position, $parse_hash) != $current_position))
-     ||
-      (!($parse_stallion->{final_position_routine}) &&
-       ($parse_this_length != $current_position)))) {
+    if (($parse_this_length != $current_position) && $must_parse_length) {
       $continue_forward = 0;
     }
   }
@@ -197,51 +173,35 @@ sub parse {
   my $parse_hash = $parameters->{parse_hash};
   my $parse_this_ref = $parse_hash->{parse_this_ref} =
    $parameters->{parse_this_ref};
+  my $parse_this_length = $parse_hash->{__parse_this_length};
   my $max_steps = $parameters->{max_steps} || $parse_stallion->{max_steps};
   my $no_max_steps = 0;
   if ($max_steps < 0) {
     $no_max_steps = 1;
     $max_steps = 1000000;
   }
-  my @bottom_up_left_to_right;
-  my $parse_this_length;
-  if (defined $parse_this_ref) {
-    $parse_this_length = length($$parse_this_ref);
-  }
-  else {
-    $parse_this_length = 0;
-  }
+  my $bottom_up_left_to_right;
   my $move_back_mode = 0;
   my $not_move_back_mode = 1;
 
   my $first_alias =
    'b'.$parse_stallion->{separator}.$parse_stallion->{separator};
 
-  my $current_position;
-  if (defined $parameters->{start_position}) {
-    $current_position = $parameters->{start_position};
-  }
-  elsif ($parse_stallion->{initial_position_routine}) {
-    $current_position = $parse_stallion->{initial_position_routine}
-    ($parse_this_ref, $parse_hash);
-  }
-  else {
-    $current_position = $parameters->{initial_pos} || 0;
-  }
+  my $current_position = $parse_hash->{__initial_position};
   my $results = $parameters->{parse_info};
-  $results->{start_position} = $current_position;
   my $maximum_position = $current_position;
   my $maximum_position_rule = $start_rule;
 
-  my $any_minimize_children = $parse_stallion->{any_minimize_children} || 0;
+  my $must_parse_length = $parse_hash->{__match_length};
+  my $any_minimize_children = $parse_stallion->{any_minimize_children};
   my $not_any_minimize_children = !$any_minimize_children;
-  my $any_maximum_child = $parse_stallion->{any_maximum_child} || 0;
+  my $any_maximum_child = $parse_stallion->{any_maximum_child};
   my $not_any_maximum_child = !$any_maximum_child;
-  my $any_minimum_child = $parse_stallion->{any_minimum_child} || 0;
+  my $any_minimum_child = $parse_stallion->{any_minimum_child};
   my $not_any_minimum_child = !$any_minimum_child;
-  my $any_match_once = $parse_stallion->{any_match_once} || 0;
-  my $any_parse_forward = $parse_stallion->{any_parse_forward} || 0;
-  my $any_parse_backtrack = $parse_stallion->{any_parse_backtrack} || 0;
+  my $any_match_once = $parse_stallion->{any_match_once};
+  my $any_parse_forward = $parse_stallion->{any_parse_forward};
+  my $any_parse_backtrack = $parse_stallion->{any_parse_backtrack};
   my $fast_move_back = $parse_stallion->{fast_move_back};
   my $delta_tree_size = $parse_stallion->{max_nodes_before_size_must_change};
   my $do_evaluation_in_parsing = $parse_stallion->{do_evaluation_in_parsing};
@@ -253,47 +213,95 @@ sub parse {
     $bottom_up = 1;
   }
 
-  my $tree = {
-    name => $start_rule,
-    steps => 0,
-    alias => $first_alias,
-    position_when_entered => $current_position,
-    __nodes_when_entered => 0,
-    parent => undef,
-    children => [],
-    child_count => 0
-  };
-  bless($tree, 'Parse::Stallion::Talon');
 
-  my $current_node = $tree;
-  my $moving_forward = 1;
-  my $moving_down = 1;
-  my $steps = 0;
-  my $message = 'Start of Parse';
-  my ($new_rule_name, $new_alias);
+  my ($tree,
+      $current_node,
+      $moving_forward,
+      $moving_down,
+      $steps,
+      $message,
+      $new_rule_name,
+      $new_alias,
+      $position_tree_size,
+      $node_completed,
+      $create_child,
+      $move_back_to_child,
+      $remove_node,
+      $new_rule,
+      $new_sub_rule,
+      $continue_forward,
+      $match,
+      $previous_position,
+      $current_node_name,
+      $current_rule,
+      $end_parse_now,
+      $tree_size);
 
-  my %position_tree_size;
-  my $node_completed = 0;
-  my $create_child = 0;
-  my $move_back_to_child = 0;
-  my $remove_node = 0;
-  my $new_rule;
-  my $new_sub_rule;
-  my $continue_forward = 1;
-  my ($match, $re_match);
-  my $previous_position;
-  my $current_node_name = $current_node->{name};
-  my $current_rule = $rule->{$current_node_name};
-  my $end_parse_now = 0;
-  my $tree_size = 1;
+  if (defined $parse_hash->{__steps_ref}) {
+    $steps = ${$parse_hash->{__steps_ref}};
+  }
+  else {
+    $steps = 0;
+  }
+
+  my $continue_parse = $parameters->{continue_parse};
+  if ($continue_parse) {
+    $tree = $parse_hash->{__tree};
+    $current_node = $parse_hash->{__current_node};
+    $moving_forward = ${$parse_hash->{__moving_forward_ref}};
+    $moving_down = ${$parse_hash->{__moving_down_ref}};
+    $current_position = ${$parse_hash->{__current_position_ref}};
+    $message = ${$parse_hash->{__message_ref}};
+    $position_tree_size = $parse_hash->{__position_tree_size};
+    $continue_forward = ${$parse_hash->{__continue_forward_ref}};
+    $tree_size = ${$parse_hash->{__tree_size_ref}};
+    $bottom_up_left_to_right = $parse_hash->{__bottom_up_left_to_right};
+  }
+  else {
+    $tree = {
+      name => $start_rule,
+      steps => $steps,
+      alias => $first_alias,
+      position_when_entered => $current_position,
+      __nodes_when_entered => 0,
+      parent => undef,
+      children => [],
+      child_count => 0
+    };
+    bless($tree, 'Parse::Stallion::Talon');
+    $parse_hash->{__tree} = $tree;
+  
+    $bottom_up_left_to_right = [];
+    $current_node = $tree;
+    $moving_forward = 1;
+    $moving_down = 1;
+    $message = 'Start of Parse';
+    $continue_forward = 1;
+    $tree_size = 1;
+    $position_tree_size = {};
+    $parse_hash->{__position_tree_size} = $position_tree_size;
+  }
+  $node_completed = 0;
+  $create_child = 0;
+  $move_back_to_child = 0;
+  $remove_node = 0;
+  $current_node_name = $current_node->{name};
+  $current_rule = $rule->{$current_node_name};
+
   $parse_hash->{__current_node_ref} = \$current_node;
+  $parse_hash->{__current_node} = $current_node;
   $parse_hash->{__current_node_name_ref} = \$current_node_name;
   $parse_hash->{__moving_forward_ref} = \$moving_forward;
   $parse_hash->{__moving_down_ref} = \$moving_down;
   $parse_hash->{__current_position_ref} = \$current_position;
   $parse_hash->{__message_ref} = \$message;
-  $parse_hash->{__tree} = $tree;
   $parse_hash->{__steps_ref} = \$steps;
+  $parse_hash->{__continue_forward_ref} = \$continue_forward;
+  $parse_hash->{__tree_size_ref} = \$tree_size;
+  $parse_hash->{__current_rule_ref} = \$current_rule;
+  $parse_hash->{__bottom_up} = $bottom_up;
+  $parse_hash->{__bottom_up_left_to_right} = $bottom_up_left_to_right;
+  $parse_hash->{__parse_trace_routine} = $parse_trace_routine;
 
   while (($steps < $max_steps) && $current_node) {
     while ($current_node && (++$steps <= $max_steps)) {
@@ -404,7 +412,7 @@ sub parse {
           $message .= " Backtracking to child" if $parse_trace_routine;
           $moving_down = 1;
           $moving_forward = 0;
-          pop @bottom_up_left_to_right if $bottom_up;
+          pop @$bottom_up_left_to_right if $bottom_up;
           $current_node =
            $current_node->{children}->[$current_node->{child_count}-1];
           $current_node_name = $current_node->{name};
@@ -435,19 +443,19 @@ sub parse {
         $new_rule = $rule->{$new_rule_name};
         $previous_position = $current_position;
         if ($any_parse_forward && (my $pf = $new_rule->{parse_forward})) {
-          $parse_hash->{parent_node} = $current_node;
+          my $delta_position;
           $parse_hash->{current_position} = $current_position;
           $parse_hash->{rule_name} = $new_rule_name;
-          ($continue_forward, $match, $current_position) =
+          ($continue_forward, $match, $delta_position) =
            &{$pf}($parse_hash);
-          if (defined $current_position) {
-            if ($current_position < $previous_position) {
+          if (defined $delta_position) {
+            if ($delta_position < 0) {
               croak ("Parse forward on $new_rule_name resulted in
-               backward progress ($previous_position, $current_position)");
+               backward progress ($previous_position, $delta_position)");
             }
-          }
-          else {
-            $current_position = $previous_position;
+            else {
+              $current_position += $delta_position;
+            }
           }
         }
         elsif (my $x = $new_rule->{regex_match}) {
@@ -474,15 +482,15 @@ sub parse {
             $maximum_position_rule = $new_rule_name;
           }
           if ($current_position == $previous_position) {
-            if (defined $position_tree_size{$current_position}) {
-              if ($position_tree_size{$current_position} <
+            if (defined $position_tree_size->{$current_position}) {
+              if ($position_tree_size->{$current_position} <
                $tree_size - $delta_tree_size) {
                 croak
                  ("$new_rule_name duplicated position $current_position");
               }
             }
             else {
-             $position_tree_size{$current_position} = $tree_size;
+             $position_tree_size->{$current_position} = $tree_size;
             }
           }
           my $new_node = {
@@ -523,10 +531,17 @@ sub parse {
         $moving_forward = 0;
         $moving_down = 0;
         $current_position = $current_node->{position_when_entered};
+        if ($bottom_up) {
+          my $change_in_tree =
+           $tree_size - $current_node->{__nodes_when_entered};
+          if ($change_in_tree > 1) {
+            splice (@$bottom_up_left_to_right, 1 - $change_in_tree);
+          }
+        }
         $tree_size = $current_node->{__nodes_when_entered};
-        if (defined $position_tree_size{$current_position}
-         && ($position_tree_size{$current_position} == $tree_size)) {
-          delete $position_tree_size{$current_position};
+        if (defined $position_tree_size->{$current_position}
+         && ($position_tree_size->{$current_position} == $tree_size)) {
+          delete $position_tree_size->{$current_position};
         }
         $message .= " Removed node created on step ".$current_node->{steps}
          if $parse_trace_routine;
@@ -542,7 +557,6 @@ sub parse {
           pop @{$current_node->{children}};
           $current_node->{child_count}--;
           if ($any_parse_backtrack && $current_rule->{parse_backtrack}) {
-            $parse_hash->{parent_node} = $current_node;
             $parse_hash->{current_position} = $current_position;
             $parse_hash->{rule_name} = $current_node_name;
             $end_parse_now = &{$current_rule->{parse_backtrack}}
@@ -585,7 +599,7 @@ sub parse {
               next;
             }
           }
-            push @bottom_up_left_to_right, $current_node if $bottom_up;
+            push @$bottom_up_left_to_right, $current_node if $bottom_up;
             $message .= " Completed node created on step ".
              $current_node->{steps} if $parse_trace_routine;
             $moving_down = 0;
@@ -598,21 +612,15 @@ sub parse {
         }
       }
     }
-    if (!$current_node && $moving_forward &&
-     (($parse_stallion->{final_position_routine} &&
-     (&{$parse_stallion->{final_position_routine}}($parse_this_ref,
-      $current_position, $parse_hash) != $current_position))
-     ||
-      (!($parse_stallion->{final_position_routine}) &&
-       ($parse_this_length != $current_position)))) {
-
+    if (!$current_node && $moving_forward && $must_parse_length &&
+     ($parse_this_length != $current_position)) {
       $moving_forward = 0;
       $moving_down = 1;
       $current_node = $tree;
       $current_node_name = $current_node->{name};
       $message .= ' . At top of tree but did not parse entire object'
        if $parse_trace_routine;
-      pop @bottom_up_left_to_right if $bottom_up;
+      pop @$bottom_up_left_to_right if $bottom_up;
       if ($any_match_once
        && $rule->{$current_node_name}->{match_once}) {
         if ($fast_move_back) {
@@ -638,9 +646,14 @@ sub parse {
   $results->{parse_backtrack_value} = $end_parse_now;
   $results->{maximum_position} = $maximum_position;
   $results->{maximum_position_rule} = $maximum_position_rule;
-  $results->{tree} = $tree;
+  if (!$moving_forward && !$current_node) {
+    $results->{tree} = {};
+  }
+  else {
+    $results->{tree} = $tree;
+  }
   $results->{tree_size} = $tree_size;
-  $results->{bottom_up_left_to_right} = \@bottom_up_left_to_right;
+  $results->{bottom_up_left_to_right} = $bottom_up_left_to_right;
   if ($steps >= $max_steps) {
     croak ("Not enough steps to do parse, max set at $max_steps");
   }
@@ -658,7 +671,7 @@ sub parse {
 
 package Parse::Stallion;
 require Exporter;
-our $VERSION = '1.05';
+our $VERSION = '2.00';
 our @ISA = qw(Exporter);
 our @EXPORT =
  qw(A AND O OR LEAF L MATCHED_STRING
@@ -666,7 +679,9 @@ our @EXPORT =
     ZERO_OR_ONE Z
     E EVALUATION U UNEVALUATION PF PARSE_FORWARD PB PARSE_BACKTRACK
     RULE_INFO R TERMINAL TOKEN
-    LEAF_DISPLAY USE_STRING_MATCH LOCATION SE STRING_EVALUATION);
+    LEAF_DISPLAY USE_STRING_MATCH LOCATION SE STRING_EVALUATION
+    I IN INC INCORPORATE
+   );
 use strict;
 use warnings;
 use Carp;
@@ -683,6 +698,13 @@ sub new {
   $self->{max_steps} = $parameters->{max_steps} || 1000000;
   $self->{parse_trace_routine} = $parameters->{parse_trace_routine} || undef;
   $self->{multiple_rule_mins} = 0;
+  $self->{any_match_once} = 0;
+  $self->{any_minimize_children} = 0;
+  $self->{any_unevaluation} = 0;
+  $self->{any_parse_forward} = 0;
+  $self->{any_parse_backtrack} = 0;
+  $self->{any_maximum_child} = 0;
+  $self->{any_minimum_child} = 0;
   $self->{self} = $self;
   if ($self->{no_evaluation} = $parameters->{no_evaluation} || 0) {
     $self->{do_evaluation_in_parsing} = 0;
@@ -694,7 +716,6 @@ sub new {
   $self->{unreachable_rules_allowed} = $parameters->{unreachable_rules_allowed}
    || 0;
   $self->{do_not_compress_eval} = $parameters->{do_not_compress_eval} || 0;
-  $self->{traversal_only} = $parameters->{traversal_only} || 0;
   $self->{separator} = $parameters->{separator} || $self->{separator};
   if (defined $parameters->{parse_forward}) {
     $self->{leaf_parse_forward} = $parameters->{parse_forward};
@@ -704,17 +725,15 @@ sub new {
     $self->{leaf_parse_backtrack} = $parameters->{parse_backtrack};
     $self->{any_parse_backtrack} = 1;
   }
-  $self->{initial_position_routine} = $parameters->{initial_position_routine};
-  if (defined $parameters->{final_position_routine}) {
-    if ($parameters->{need_not_match_whole_string}) {
-      croak ("only 1: final_position_routine And need_not_match_whole_string");
-    }
-    $self->{final_position_routine} = $parameters->{final_position_routine};
+  if (defined $parameters->{length_routine}) {
+    $self->{length_routine} = $parameters->{length_routine};
   }
-  elsif ($parameters->{need_not_match_whole_string}) {
-    $self->{final_position_routine} = sub {return $_[1];}
+  else {
+    $self->{length_routine} = sub {return length(${$_[0]});}
   }
-  $self->set_up_full_rule_set($rules_to_set_up_hash, $parameters->{start_rule});
+  $self->incorporate_others($parameters->{incorporate})
+   if defined $parameters->{incorporate};
+  $self->set_up_full_rule_set($rules_to_set_up_hash, $parameters);
   my $number_of_rules = scalar(keys %{$self->{rule}});
   my $min_multiplier = $number_of_rules;
   $self->{max_nodes_before_size_must_change} = $number_of_rules +
@@ -724,25 +743,98 @@ sub new {
   return $self;
 }
 
-sub rule_info_hash_ref {
-  my $self = shift;
-  return $self->{rule_info};
+sub copy_tree_node_list {
+  my $list = shift;
+  my @new_list;
+  my %parent_hash;
+  my $node_count = scalar @$list - 1;
+  my $node_to_copy = $list->[$node_count];
+  $new_list[$node_count] = {
+      name => $node_to_copy->{name},
+      alias => $node_to_copy->{alias},
+      parse_match => $node_to_copy->{parse_match},
+      position_when_entered => $node_to_copy->{position_when_entered},
+      position_when_completed => $node_to_copy->{position_when_completed}
+  };
+  $parent_hash{$node_to_copy} = $node_count;
+  for (my $i = $node_count-1; $i > -1; $i--) {
+    $node_to_copy = $list->[$i];
+    $parent_hash{$node_to_copy} = $i;
+    $new_list[$i] = {
+      name => $node_to_copy->{name},
+      alias => $node_to_copy->{alias},
+      parse_match => $node_to_copy->{parse_match},
+      position_when_entered => $node_to_copy->{position_when_entered},
+      position_when_completed => $node_to_copy->{position_when_completed},
+      parent => $new_list[$parent_hash{$node_to_copy->{parent}}],
+     };
+  }
+  return \@new_list;
 }
 
 sub parse_and_evaluate {
   my $self = shift;
   my $parameters = $_[1] || {};
+  my $in_is_string = 0;
+  $parameters->{parse_info} = $parameters->{parse_info} || {};
+  $parameters->{parse_hash} = $parameters->{parse_hash} || {};
+  my $initial_position = 0;
   if (defined $_[0]) {
     $parameters->{parse_this_ref} = \$_[0];
     if (ref $_[0] eq '') {
-      $parameters->{initial_pos} = pos $_[0];
+      $in_is_string = 1;
+      $initial_position = pos $_[0] || 0;
     }
   }
+  my $find_all;
+  if (defined $parameters->{find_all}) {
+    $find_all = $parameters->{find_all};
+  }
+  elsif ($parameters->{global}) {
+    if (wantarray) {
+      $find_all = 1;
+    }
+    else {
+      $find_all = 0;
+    }
+  }
+  if (defined $parameters->{start_position}) {
+    $initial_position = $parameters->{start_position};
+  }
+  my $not_match_start;
+  if (!defined $parameters->{match_start}) {
+    $not_match_start = 0;
+  }
+  else {
+    $not_match_start = !$parameters->{match_start};
+  }
+  if (!defined $parameters->{match_length}) {
+    $parameters->{parse_hash}->{__match_length} = 1;
+  }
+  else {
+    $parameters->{parse_hash}->{__match_length} = $parameters->{match_length};
+  }
+  $parameters->{parse_hash}->{__initial_position} = $initial_position;
   my $parse_this_ref = $parameters->{parse_this_ref};
+  my $parse_this_length = $parameters->{parse_hash}->{__parse_this_length} =
+   $self->{length_routine}($parse_this_ref);
   my $parser = new Parse::Stallion::Parser($self);
-  $parameters->{parse_info} = $parameters->{parse_info} || {};
-  $parameters->{parse_hash} = $parameters->{parse_hash} || {};
-  $parameters->{parse_hash}->{rule_info} = $self->rule_info_hash_ref;
+  my $substitution_subroutine;
+  my $substitute;
+  if (defined $parameters->{substitution}) {
+    $substitute = 1;
+    if (ref $parameters->{substitution} eq 'CODE') {
+      $substitution_subroutine = $parameters->{substitution};
+    }
+    else {
+      $substitution_subroutine = sub {return $parameters->{substitution}};
+    }
+  }
+  elsif ($substitute = $parameters->{substitute} || 0) {
+    $substitution_subroutine = sub {return $_[0];}
+  }
+  $parameters->{parse_hash}->{rule_info} =
+   $self->{rule_info};
   my $parser_results;
   if ($parameters->{parse_trace}) {
     $parameters->{parse_trace_routine} = sub {
@@ -764,23 +856,199 @@ sub parse_and_evaluate {
       };
     };
   }
-  $parser_results = eval {$parser->parse($parameters)};
-  if ($@) {croak ($@)};
+  my $match_position;
+  my $match_maximum = $parameters->{match_maximum};
+  my $match_minimum = $parameters->{match_minimum};
+  if ($match_maximum && $match_minimum) {
+    croak "Cannot match both maximum and minimum";
+  }
+  if ($match_maximum || $match_minimum) {
+    $parameters->{parse_hash}->{__match_length} = 0;
+  }
+  my $tree_to_evaluate = undef;
   my $to_return;
-  if (!($parser_results->{parse_succeeded}) || $self->{no_evaluation}) {
-    $to_return = undef;
+  my @results_array;
+  my $continue_to_parse = 1;
+  my $parse_succeeded;
+  while ($continue_to_parse) {
+    $continue_to_parse = 0;
+    if ($match_maximum) {
+      $match_position = -1;
+    }
+    elsif ($match_minimum) {
+      $match_position = $parse_this_length;
+    }
+    $parse_succeeded = 0;
+    my $root_node;
+    my $repeat_parse_by_start = 1;
+    while ($repeat_parse_by_start) {
+      $repeat_parse_by_start = 0;
+      my $repeat_parse = 1;
+      while ($repeat_parse) {
+        $repeat_parse = 0;
+        $parser_results = eval {$parser->parse($parameters)};
+        if ($@) {croak ($@)};
+        if ($parser_results->{parse_succeeded}) {
+          $parse_succeeded = 1;
+          if ($match_maximum &&
+           ($parser_results->{final_position} < $parse_this_length)) {
+            if ($parser_results->{final_position} > $match_position) {
+              $match_position = $parser_results->{final_position};
+              if ($self->{do_evaluation_in_parsing}) {
+                $to_return = $parser_results->{parsing_evaluation};
+              }
+              else {
+                $tree_to_evaluate = copy_tree_node_list(
+                 $parser_results->{bottom_up_left_to_right});
+                $root_node =
+                 $tree_to_evaluate->[$parser_results->{tree_size}-1];
+              }
+            }
+            $repeat_parse = 1;
+            $parameters->{continue_parse} = 1;
+            ${$parameters->{parse_hash}->{__moving_forward_ref}} = 0;
+            ${$parameters->{parse_hash}->{__moving_down_ref}} = 1;
+            $parameters->{parse_hash}->{current_node} =
+             $parameters->{parse_hash}->{tree};
+            ${$parameters->{parse_hash}->{__message_ref}} .=
+             ' . Looking for longer match '
+             if $parameters->{parse_hash}->{__parse_trace_routine};
+            pop @{$parser_results->{bottom_up_left_to_right}}
+             if $parameters->{parse_hash}->{__bottom_up};
+          }
+          elsif ($match_minimum &&
+           ($parser_results->{final_position} > $initial_position)) {
+            if ($parser_results->{final_position} < $match_position) {
+              $match_position = $parser_results->{final_position};
+              if ($self->{do_evaluation_in_parsing}) {
+                $to_return = $parser_results->{parsing_evaluation};
+              }
+              else {
+                $tree_to_evaluate = copy_tree_node_list(
+                 $parser_results->{bottom_up_left_to_right});
+                $root_node =
+                 $tree_to_evaluate->[$parser_results->{tree_size}-1];
+              }
+            }
+            $repeat_parse = 1;
+            $parameters->{continue_parse} = 1;
+            ${$parameters->{parse_hash}->{__moving_forward_ref}} = 0;
+            ${$parameters->{parse_hash}->{__moving_down_ref}} = 1;
+            $parameters->{parse_hash}->{current_node} =
+             $parameters->{parse_hash}->{tree};
+            ${$parameters->{parse_hash}->{__message_ref}} .=
+             ' . Looking for shorter match '
+             if $parameters->{parse_hash}->{__parse_trace_routine};
+            pop @{$parser_results->{bottom_up_left_to_right}}
+             if $parameters->{parse_hash}->{__bottom_up};
+          }
+          elsif ($self->{do_evaluation_in_parsing}) {
+            $match_position = $parser_results->{final_position};
+            $to_return = $parser_results->{parsing_evaluation};
+          }
+          else {
+            $match_position = $parser_results->{final_position};
+            $tree_to_evaluate = $parser_results->{bottom_up_left_to_right};
+            $root_node = $parser_results->{tree};
+          }
+        }
+      }
+      if (!($parse_succeeded) && $not_match_start &&
+          ($parse_this_length > $initial_position)) {
+        $parameters->{parse_hash}->{__initial_position}++;
+        $initial_position++;
+        $parameters->{continue_parse} = 0;
+        $repeat_parse_by_start = 1;
+      }
+    }
+  
+    $parser_results->{parse_succeeded} =
+     $parser_results->{parse_succeeded} || $parse_succeeded;
+    if (!($parse_succeeded) || $self->{no_evaluation}) {
+      $to_return = undef;
+    }
+    elsif ($self->{do_evaluation_in_parsing}) {
+      if (!defined $to_return) {$to_return = ''};
+    }
+    else {
+      $parameters->{nodes} = $tree_to_evaluate;
+      $self->new_evaluate_tree_node($parameters);
+      #$to_return = $parser_results->{tree}->{computed_value};
+      $to_return = $root_node->{computed_value};
+      if (!defined $to_return) {$to_return = ''};
+    }
+    if ((defined $to_return) && ($substitute) ) {
+      my $replaced_length = $match_position - $initial_position;
+      my $to_sub = &{$substitution_subroutine}($to_return);
+      substr(${$parameters->{parse_this_ref}}, $initial_position,
+       $replaced_length) = $to_sub;
+      $match_position += $self->{length_routine}(\$to_sub) - $replaced_length;
+      $parameters->{parse_hash}->{__parse_this_length} = $parse_this_length =
+       $self->{length_routine}($parse_this_ref);
+    }
+    if ($find_all && $parse_succeeded) {
+      push @results_array, $to_return;
+      if ($match_position == $initial_position) {
+        $match_position++;
+      }
+      $initial_position = $parameters->{parse_hash}->{__initial_position}
+       = $match_position;
+      if ($match_position <= $parse_this_length) {
+        $continue_to_parse = 1;
+        $parameters->{continue_parse} = 0;
+      }
+    }
   }
-  elsif ($self->{do_evaluation_in_parsing}) {
-    $to_return = $parser_results->{parsing_evaluation};
-    if (!defined $to_return) {$to_return = ''};
+  if ($in_is_string) {
+    if ($parameters->{global} && $parse_succeeded) {
+      pos $_[0] = $match_position;
+    }
+    else {
+      pos $_[0] = undef;
+    }
   }
-  else {
-    $parameters->{nodes} = $parser_results->{bottom_up_left_to_right};
-    $self->new_evaluate_tree_node($parameters);
-    $to_return = $parser_results->{tree}->{computed_value};
-    if (!defined $to_return) {$to_return = ''};
+
+  if ($find_all) {
+    return @results_array;
   }
   return $to_return;
+}
+
+sub search {
+  my $self = shift;
+  my $parameters = $_[1] || {};
+  if (!defined $parameters->{match_start}) {
+    $parameters->{match_start} = 0;
+  }
+  if (!defined $parameters->{match_length}) {
+    $parameters->{match_length} = 0;
+  }
+  $parameters->{parse_info} = $parameters->{parse_info} || {};
+  if ($parameters->{global} && wantarray) {
+    return $self->parse_and_evaluate($_[0], $parameters);
+  }
+  else {
+    $self->parse_and_evaluate($_[0], $parameters);
+    if ($parameters->{parse_info}->{parse_succeeded}) {
+      return 1;
+    }
+    else {
+      return '';
+    }
+  }
+}
+
+sub search_and_substitute {
+  my $self = shift;
+  my $parameters = $_[1] || {};
+  $parameters->{substitute} = 1;
+  if ($parameters->{global}) {
+    my @substitutions = $self->search($_[0], $parameters);
+    return scalar(@substitutions);
+  }
+  else {
+    return $self->search($_[0], $parameters);
+  }
 }
 
 #package rules
@@ -910,28 +1178,98 @@ sub Z {optional(@_)}
 
 sub update_count {
   my $rule_type = shift;
-  my $rule_counts = shift;
-  my $subrule_name = shift;
+  my $rule_hash = shift;
+  my $subrule_alias = shift;
   my $subrule_count = shift || 0;
   if ($subrule_count > 1) {
-    $rule_counts->{rule_count}->{$subrule_name} = 2;
+    $rule_hash->{rule_count}->{$subrule_alias} = 2;
   }
   elsif ($rule_type eq 'AND') {
-    $rule_counts->{rule_count}->{$subrule_name} += $subrule_count;
+    $rule_hash->{rule_count}->{$subrule_alias} += $subrule_count;
   }
-  elsif ($rule_type eq 'MULTIPLE' && ($rule_counts->{maximum_child} != 1 ||
+  elsif ($rule_type eq 'MULTIPLE' && ($rule_hash->{maximum_child} != 1 ||
    $subrule_count > 1)) {
-    $rule_counts->{rule_count}->{$subrule_name} = 2;
+    $rule_hash->{rule_count}->{$subrule_alias} = 2;
   }
   elsif ($rule_type eq 'MULTIPLE') {
-    $rule_counts->{rule_count}->{$subrule_name} =
-     $rule_counts->{rule_count}->{$subrule_name} || 1;
+    $rule_hash->{rule_count}->{$subrule_alias} =
+     $rule_hash->{rule_count}->{$subrule_alias} || 1;
   }
   elsif ($rule_type eq 'OR' &&
-   (!defined $rule_counts->{rule_count}->{$subrule_name} ||
-    ($subrule_count > $rule_counts->{rule_count}->{$subrule_name}))) {
-    $rule_counts->{rule_count}->{$subrule_name} = $subrule_count;
+   (!defined $rule_hash->{rule_count}->{$subrule_alias} ||
+    ($subrule_count > $rule_hash->{rule_count}->{$subrule_alias}))) {
+    $rule_hash->{rule_count}->{$subrule_alias} = $subrule_count;
   }
+}
+
+sub incorporate_others {
+  my $self = shift;
+  my $incorporate_list = shift;
+  if (ref $incorporate_list ne 'ARRAY') {
+    croak "Must pass array to incorporate";
+  }
+  foreach my $to_incorporate (@$incorporate_list) {
+    $self->copy_rules_from_grammar($to_incorporate);
+  }
+}
+
+sub copy_rules_from_grammar {
+  my $self = shift;
+  my $parameters = shift;
+  my $parser_to_incorporate = $parameters->{grammar_source};
+  if (!defined $parser_to_incorporate) {
+    croak "Need to define grammar_source to incorporate";
+  }
+  my $rules_to_copy = $parser_to_incorporate->{rule};
+  my $prefix;
+  if (defined $parameters->{prefix}) {
+    $prefix = $parameters->{prefix};
+  }
+  else {
+    $prefix = '';
+  }
+  foreach my $rule_name (keys %{$rules_to_copy}) {
+    if (defined $self->{rule}->{$prefix.$rule_name}) {
+      croak ("Rule $prefix$rule_name in extraction already exists");
+    }
+    my $rule_to_copy = $rules_to_copy->{$rule_name};
+    my %copied_rule = %{$rule_to_copy};
+    $copied_rule{sub_rule_name} = $prefix.$rule_to_copy->{sub_rule_name}
+     if defined $rule_to_copy->{sub_rule_name};
+    if (defined $rule_to_copy->{rule_count}) {
+      $copied_rule{rule_count} = {%{$rule_to_copy->{rule_count}}};
+      $copied_rule{subrule_list} = [];
+      for my $i (1..$copied_rule{subrule_list_count}) {
+        $copied_rule{subrule_list}[$i-1] = {};
+        $copied_rule{subrule_list}->[$i-1]->{'alias'} =
+         $rule_to_copy->{subrule_list}->[$i-1]->{'alias'};
+        $copied_rule{subrule_list}->[$i-1]->{'name'} = $prefix.
+         $rule_to_copy->{subrule_list}->[$i-1]->{'name'};
+      }
+    }
+    $self->{rule}->{$prefix.$rule_name} = \%copied_rule;
+  }
+  $self->{multiple_rule_mins} += $parser_to_incorporate->{multiple_rule_mins};
+  $self->{do_evaluation_in_parsing} = $self->{do_evaluation_in_parsing} ||
+   $parser_to_incorporate->{do_evaluation_in_parsing};
+  $self->{any_unevaluation} = $self->{any_unevaluation} ||
+   $parser_to_incorporate->{any_unevaluation};
+  $self->{any_minimize_children} = $self->{any_minimize_children} ||
+   $parser_to_incorporate->{any_minimize_children};
+  $self->{any_match_once} = $self->{any_match_once} ||
+   $parser_to_incorporate->{any_match_once};
+  $self->{any_parse_forward} = $self->{any_parse_forward} ||
+   $parser_to_incorporate->{any_parse_forward};
+  $self->{any_parse_backtrack} = $self->{any_parse_backtrack} ||
+   $parser_to_incorporate->{any_parse_backtrack};
+  $self->{any_maximum_child} = $self->{any_maximum_child} ||
+   $parser_to_incorporate->{any_maximum_child};
+  $self->{any_minimum_child} = $self->{any_minimum_child} ||
+   $parser_to_incorporate->{any_minimum_child};
+  $self->{fast_move_back} = $self->{fast_move_back} ||
+   $parser_to_incorporate->{fast_move_back};
+  $self->{no_evaluation} = $self->{no_evaluation} ||
+   $parser_to_incorporate->{no_evaluation};
 }
 
 sub add_rule {
@@ -940,7 +1278,7 @@ sub add_rule {
   my $rule_name = $parameters->{rule_name} || croak ("Empty rule name");
   my $rule = $parameters->{rule_definition};
   if ($self->{rule}->{$rule_name}) {
-    croak ("Rule $rule_name already exists\n");
+    croak ("Rule $rule_name already exists");
   }
   if (ref $rule eq 'Regexp') {
     $rule = LEAF($rule);
@@ -957,10 +1295,14 @@ sub add_rule {
   my $base_rule = $rule_name;
   if (defined $parameters->{generated_name}) {
     $self->{rule}->{$rule_name}->{generated} = 1;
-    $base_rule = $parameters->{generated_name};
+    $self->{rule}->{$rule_name}->{base_rule} =
+     $base_rule = $parameters->{generated_name};
   }
   elsif (index($rule_name, $separator) != -1) {
     croak ("rule name $rule_name contains separator $separator");
+  }
+  else {
+    $self->{rule}->{$rule_name}->{base_rule} = $rule_name;
   }
   my $default_alias = '';
   my @copy_of_rule; #to prevent changing input
@@ -1039,7 +1381,7 @@ sub add_rule {
       }
     }
     elsif (!defined $sub_rule) {
-      croak "undefined sub_rule in rule $rule_name\n";
+      croak "undefined sub_rule in rule $rule_name";
     }
     else {
       push @copy_of_rule, $sub_rule;
@@ -1099,7 +1441,7 @@ sub add_rule {
       $self->{multiple_rule_mins} += $min;
     }
     else {
-      croak "Bad rule type $rule_type on rule $rule_name\n";
+      croak "Bad rule type $rule_type on rule $rule_name";
     }
     foreach my $current_rule (@copy_of_rule) {
       my ($alias, $name);
@@ -1267,11 +1609,14 @@ sub which_parameters_are_arrays {
 sub set_up_full_rule_set {
   my $self = shift;
   my $rules_to_set_up_hash = shift;
-  my $start_rule = shift;
+  my $parameters = shift;
+  my $start_rule = $parameters->{start_rule};
 
-  foreach my $hash_rule_name (sort keys %$rules_to_set_up_hash) {
-    $self->add_rule({rule_name => $hash_rule_name,
-     rule_definition => $rules_to_set_up_hash->{$hash_rule_name}});
+  if (scalar keys %$rules_to_set_up_hash) {
+    foreach my $hash_rule_name (sort keys %$rules_to_set_up_hash) {
+      $self->add_rule({rule_name => $hash_rule_name,
+       rule_definition => $rules_to_set_up_hash->{$hash_rule_name}});
+    }
   }
 
   if (!defined $start_rule) {
@@ -1279,7 +1624,9 @@ sub set_up_full_rule_set {
     foreach my $rule_name (keys %{$self->{rule}}) {
       foreach my $subrule
        (@{$self->{rule}->{$rule_name}->{subrule_list}}) {
-        $covered_rule{$subrule->{name}}++;
+        if ($subrule->{name} ne $self->{rule}->{$rule_name}->{base_rule}) {
+          $covered_rule{$subrule->{name}}++;
+        }
       }
     }
     START: foreach my $rule_name (keys %{$self->{rule}}) {
@@ -1410,7 +1757,6 @@ sub new_unevaluate_tree_node {
   my $rule_name = $node->{name};
   my $rule = $rules_details->{$rule_name};
   my $subroutine_to_run = $rule->{parsing_unevaluation};
-  my $traversal_only = $self->{traversal_only};
   my $params_to_eval = $node->{__parameters};
 
   if ($rule->{use_parse_match}) {
@@ -1419,7 +1765,6 @@ sub new_unevaluate_tree_node {
 
   if (defined $subroutine_to_run) {
     my $parse_hash = $parameters->{parse_hash};
-    delete $parse_hash->{parent_node};
     delete $parse_hash->{current_position};
     delete $parse_hash->{rule_name};
     $parse_hash->{current_node} = $node;
@@ -1428,7 +1773,7 @@ sub new_unevaluate_tree_node {
   }
 
   my $parent;
-  if (!$traversal_only && ($parent = $node->{parent})) {
+  if ($parent = $node->{parent}) {
 
     foreach my $param (keys %{$node->{passed_params}}) {
       if (my $count = $node->{passed_params}->{$param}) {
@@ -1457,12 +1802,10 @@ sub new_evaluate_tree_node {
   my $self = shift;
   my $parameters = shift;
   my $nodes = $parameters->{nodes};
-  my $traversal_only = $self->{traversal_only};
   my $rules_details = $self->{rule};
   my @results;
 
   my $parse_hash = $parameters->{parse_hash};
-  delete $parse_hash->{parent_node};
   foreach my $node (@$nodes) {
     my $rule_name = $node->{name};
     my $params_to_eval = $node->{__parameters};
@@ -1486,7 +1829,7 @@ sub new_evaluate_tree_node {
       @results = &$subroutine_to_run($params_to_eval, $parse_hash);
       $cv = $results[0];
     }
-    elsif (!$traversal_only) {
+    else {
       if ($rule->{generated} || $self->{do_not_compress_eval}) {
         $cv = $params_to_eval;
       }
@@ -1500,7 +1843,7 @@ sub new_evaluate_tree_node {
     $node->{computed_value} = $cv;
 
     my $parent;
-    if (!$traversal_only && ($parent = $node->{parent})) {
+    if ($parent = $node->{parent}) {
       my $parent_name = $parent->{name};
 
       if (defined $alias) {
@@ -1550,6 +1893,11 @@ sub LOCATION {
   return ($line_number, $line_position);
 }
 
+sub parse_forward {
+  my $parse_hash = shift;
+  
+}
+
 1;
 
 __END__
@@ -1575,13 +1923,13 @@ Parse::Stallion - EBNF based regexp backtracking parser and tree evaluator.
     max_steps => 200000, #default 1000000;
     do_not_compress_eval => 0, #default 0
     separator => '__XZ__', #default '__XZ__'
-    need_not_match_whole_string => 0, #default 0
     parse_forward => sub {...}, #default no sub
     parse_backtrack => sub {...}, #default no sub
-    traversal_only => 0, #default 0
     unreachable_rules_allowed => 0, #default 0
     fast_move_back => 1, #default 1 unless any unevaluation/parse_backtrack
     parse_trace_routine => sub {...}, #default undef
+    incorporate => [{grammar_source => $other_parse_stallion,
+                     prefix =>$p}, ...], #default undef
   });
 
   my $parse_info = {}; # optional, little impact on performance
@@ -1596,8 +1944,21 @@ Parse::Stallion - EBNF based regexp backtracking parser and tree evaluator.
     start_position => 0, #default 0
     start_rule => $start_rule, # default from parser creation
     parse_hash => $parse_hash, #used as parse_hash in called routines
+    match_start => 1, #default 1
+    match_length => 1, #default 1
+    match_maximum => 0, #default 0
+    match_minimum => 0, #default 0
+    global => 0, #default 0
+    find_all => 0, #default 0 unless global == 1 and wantarray
+    substitute => 0, #default 0
+    substitution => undef, #default undef
    });
   # returns undef if unable to parse
+  my @result = $stallion->parse_and_evaluate($given_string, {global=>1,...})
+  # returns array of parsed results
+
+  $result = $stallion->search($given_string, {...});
+  $result = $stallion->search_and_substitute($given_string, {...});
 
 
 Rule Definitions (may be abbreviated to first letter):
@@ -1691,7 +2052,8 @@ Reading a grammar from a string instead of functions:
 There are 4 rule types: B<'LEAF'>, B<'AND'>, B<'OR'>, and B<'MULTIPLE'>.
 
 Parsing begins from the start rule, if the 'start_rule' parameter
-is omitted, the rule which is not a subrule is used as the start rule.
+is omitted, the rule which is not a subrule, except possibly of itself,
+is used as the start rule.
 The start rule can be of any type, though if the start rule is a B<'LEAF'>,
 the grammar is essentially just a regular expression.
 
@@ -1933,54 +2295,227 @@ After setting up a Parse::Stallion parser, strings are parsed and evaluated
 via parse_and_evaluate.  The returned value is the
 returned value of the root node's evaluation routine.
 
-In a typical parse, the current position corresponds to how much of
-the string from left to right has been parsed, moving from 0 to its length.
+During a parse, the current position corresponds to how much of
+the string from left to right has been parsed.
+
+=head3 SEARCH, SEARCH_AND_SUBSTITUTE
+
+Similar to perl's regexp match (m/regexp/) and search (s/regexp/new/),
+two subroutines, search and search_and_substitute, are provided that
+perform similar functionality
+with using Parse::Stallion grammars.  They contain calls to
+parse_and_evaluate with certain parameters set, match_length and
+match_start set to false.
+
+If global is true, search_and_substitute returns the count of the
+number of substitutions.
+
+EXAMPLES
+
+  my $search_parser = new Parse::Stallion(
+    {start => A(qr/b+/, qr/c+/, E(sub{return 'x'}))}
+  );
+
+  my $search_result;
+  $search_result = $search_parser->search('abd');
+  #search_result is false ('')
+  $search_result = $search_parser->search('abcd');
+  #search_result is true (1)
+  my $search_string = 'abcd';
+  $search_result = $search_parser->search_and_substitute($search_string);
+  #$search_result is true (1), $search_string contains 'axd'
 
 =head3 PARTIAL STRING PARSES
 
-The parser completes a parse only if the grammar matches
-the whole string unless the parameter need_not_match_whole_string is set.
+The parser completes a parse only if the position equals the
+length unless the parameter match_length is set to false.
 
 Example showing differences
 
    my $one_grammar = {start => qr/1/};
    my $parser = new Parse::Stallion($one_grammar);
-   my $partial_parser = new Parse::Stallion($one_grammar,
-    {need_not_match_whole_string => 1});
+   my $partial_parser = new Parse::Stallion($one_grammar);
    $parser->parse_and_evaluate('12');  # does not parse
-   $partial_parser->parse_and_evaluate('12');  # parses (returns '1')
+   $partial_parser->parse_and_evaluate('12',
+    {match_length=>0});  # parses (returns '1')
 
 =head3 START POSITION AND REFERENCE INPUT
 
-The default start position of $input_string is pos $input_string
-which is most likely 0.
-One can specify the start_position as a parameter of parse_and_evaluate
-or by creating an initial_position_routine.
+The default start position of $input_string is pos $input_string,
+likely to be 0.
+One can specify the start_position as a parameter of parse_and_evaluate.
 
-Example showing how to loop on input
+Examples:
 
-  my $parser = new Parse::Stallion({n => L(qr/(\d+)\;/,E(sub{$_[0]+1}))},
-   {need_not_match_whole_string => 1});
+  my $parser = new Parse::Stallion({n => L(qr/(\d+)\;/,E(sub{$_[0]+1}))});
   my $input = '342;234;532;444;3;23;';
+
   my $pi = {final_position => 0};
   my $input_length = length($input);
+  my @results;
   while ($pi->{final_position} != $input_length) {
     push @results, $parser->parse_and_evaluate($input,
-     {parse_info=> $pi, start_position => $pi->{final_position}});
+     {parse_info=> $pi, start_position => $pi->{final_position},
+      match_length => 0});
   }
   # @results should contain (343, 235, 533, 445, 4, 24)
 
-However, by noting that the pos of a string is set by parse_and_evaluate,
-one can rewrite the loop above as:
+  # Making use of Global:
 
-  my $parser = new Parse::Stallion({n => L(qr/(\d+)\;/,E(sub{$_[0]+1}))},
-   {need_not_match_whole_string => 1});
-  my $input = '342;234;532;444;3;23;';
-   while (my $result = $parser->parse_and_evaluate($input)) {
+  @results = ();
+  pos $input = 0;
+  while (my $result = $parser->parse_and_evaluate($input,
+   {global => 1})) {
     push @results, $result;
   }
   # @results should contain (343, 235, 533, 445, 4, 24)
-  # pos $input would be undef before loop and 21 after loop
+
+  #By making use of list context:
+  pos $input = 0;
+  @results = $parser->parse_and_evaluate($input, {global => 1,
+   match_length => 0});
+  # @results should contain (343, 235, 533, 445, 4, 24)
+
+=head3 OTHER PARAMETERS
+
+See the examples at the end of this section.
+
+=head4 MATCH_START, MATCH_LENGTH
+
+By default the string from the initial position onwards must match
+the grammar.  By setting match_start to 0, the parse can be matched
+from the start position or greater; this search can take more steps.
+
+Likewise, a parse by default can end only if the position reaches
+the length.  By setting match_length to 0, this needs not be the case;
+this search can take fewer steps.
+
+match_start set to false is similar to a parse that has a start rule:
+ start_rule => A(M(qr/./,MATCH_MIN_FIRST),rest_of_grammar)
+
+Using match_minimum the strings can be shorter and fewer lines of
+code are needed to manipulate the result.
+
+=head4 MATCH_MINIMUM, MATCH_MAXIMUM
+
+match_minimum = 1 finds the successful parse with the lowest start
+position with the lowest final position.
+match_maximum = 1 finds the successful parse with the lowest start
+position with the greatest final position.
+
+Setting match_minimum or match_maximum sets match_length to false.
+
+
+=head4 SUBSTITUTE, SUBSTITUTION
+
+If the parameter substitute is set, the parsed string is modified
+from the matched start to matched end with the evaluated result.
+
+By default the substr function is used for this, but one may use
+the parameter substitution for a different function.
+Provided so non-string objects can substitute.
+
+=head4 GLOBAL, FIND_ALL
+
+global = 1 preserves the position of the string being marched at
+its final position.
+One probably wants to set match_length to false if global is true.
+If parse_and_evaluate has global = 1 used within a list context, the
+parse and evaluate is repeated until the parse fails and an
+array of results is returned.
+
+
+EXAMPLES
+
+  my $plus_times_parser = new Parse::Stallion({
+    start => A('term',M(A(qr/\+/,'term')),
+         E(sub {my $i = 0; $i += $_ for @{$_[0]->{term}}; return $i;})),
+    term => A('expression',M(A(qr/\*/,'expression')),
+         E(sub {my $i = 1; $i *= $_ for @{$_[0]->{expression}}; return $i;})),
+    expression => O(A(qr/\(/,'start',qr/\)/, E(sub {return $_[0]->{start}})),
+     L(qr/\d+/,E(sub {return $_[0]}))),
+   },
+    {start_rule => 'start'});
+
+  my $result = $plus_times_parser->parse_and_evaluate('(3+5*2)*2+4*3');
+  #$result should contain 38
+
+  $result = $plus_times_parser->parse_and_evaluate('example:(3+5*2)*2+4*3');
+  #$result should be undef
+
+  $result = $plus_times_parser->parse_and_evaluate('example:(3+5*2)*2+4*3',
+   {match_start => 0});
+  #$result should contain 38
+
+  $result = $plus_times_parser->parse_and_evaluate('(3+5*2)*2+4*3',
+   {match_length => 0});
+  #$result should contain 38 because of how grammar is declared
+
+  $result = $plus_times_parser->parse_and_evaluate('(3+5*2)*2+4*3ttt',
+   {match_length => 0});
+  #$result should contain 38
+
+  $result = $plus_times_parser->parse_and_evaluate('(3+5*2)*2+4*3',
+   {match_minimum =>1});
+  #$result should contain 13
+
+  my $string_with_numbers = '7*8 is greater than 4+3+4 greater than 2*5';
+  $plus_times_parser->search_and_substitute($string_with_numbers);
+  #$string_with_numbers should be '56 is greater than 4+3+4 greater than 2*5';
+
+  $string_with_numbers = '7*8 is greater than 4+3+4 greater than 2*5';
+  $plus_times_parser->search_and_substitute($string_with_numbers,
+   {global=>1});
+  #$string_with_numbers should be '56 is greater than 11 greater than 10';
+
+  my $choice_parser = new Parse::Stallion({
+    start => O(qr'bc', qr'abcdef', qr'abcd', qr'abcde', qr'abc', qr'de')});
+
+  $result = $choice_parser->parse_and_evaluate('abcd');
+  #result should be "abcd"
+
+  $result = $choice_parser->parse_and_evaluate('abcdex');
+  #result should be undef
+
+  $result = $choice_parser->parse_and_evaluate('abcdex', {match_minimum => 1});
+  #result should be "abc"
+
+  $result = $choice_parser->parse_and_evaluate('abcdex', {match_maximum => 1});
+  #result should be "abcde"
+
+  $result = $choice_parser->parse_and_evaluate('abcdex', {match_minimum => 1,
+   match_start => 0});
+  #result should be "abc"
+
+  @result = $choice_parser->parse_and_evaluate('abcdex', {match_minimum => 1,
+    global => 1});
+  #@result should contain ("abc", "de")
+
+  my $p_and_e_string = 'abcdex';
+  my $result_1 = $choice_parser->parse_and_evaluate($p_and_e_string,
+   {match_minimum => 1, global => 1});
+  my $result_2 = $choice_parser->parse_and_evaluate($p_and_e_string,
+   {match_minimum => 1, global => 1});
+  #$result_1 should contain "abc", $result_2 should contain "de"
+
+  $result = $choice_parser->parse_and_evaluate('tabcdex', {match_minimum => 1});
+  #result should be undef
+
+  $result = $choice_parser->parse_and_evaluate('tabcdex', {match_maximum => 1});
+  #result should be undef
+
+  $result = $choice_parser->parse_and_evaluate('tabcdex', {match_minimum => 1,
+   match_start => 0});
+  #result should be "abc"
+
+  $result = $choice_parser->parse_and_evaluate('tabcdex', {match_maximum => 1,
+   match_start => 0});
+  #result should be "abcde"
+
+  $result = $choice_parser->parse_and_evaluate('abcdex',
+   {match_length => 0});
+  #result should be undef
+
 
 =head3 RETURNED VALUES
 
@@ -1989,6 +2524,8 @@ evaluation failed; an empty string is returned if parsing succeeds
 but evaluation results in an
 undef.  Also one can look at $parse_info->{parse_succeeded} which
 has a value even if there is no evaluation.
+
+=head4 PARSE_INFO and PARSE_TRACE
 
 To get details on the parsing from parse_and_evaluate, there
 are two optional parameters: parse_info that receives a hash ref
@@ -2004,8 +2541,7 @@ filled in during parse_and_evaluate.
   $parse_info->{tree}; # Root of resultant parse tree
   $parse_info->{number_of_steps}; # Number of steps taken
   $parse_info->{start_rule}; # Start rule used for this parse
-  $parse_info->{start_position}; # Initial position of parse
-  $parse_info->{final_position}; # 0 if parse failed
+  $parse_info->{final_position};
   $parse_info->{final_position_rule}; # Last rule looked at
   $parse_info->{maximum_position}; # Maximum position in parse
   $parse_info->{maximum_position_rule}; # First rule at maximum position
@@ -2036,7 +2572,7 @@ Example:
 
   my $result = $a_grammar->parse_and_evaluate('aab',
     {parse_trace_routine => sub {
-      print 'at step '.${$_[0]->{__step_ref}}."\n";
+      print 'at step '.${$_[0]->{__steps_ref}}."\n";
       print 'moving forward is '.${$_[0]->{__moving_forward_ref}}."\n";
       print 'position is '.${$_[0]->{__current_position_ref}}."\n";
       }
@@ -2180,7 +2716,10 @@ parse,
    __steps_ref # Reference to number of steps taken
 
 Any future parameters will be given double underscores at the start
-of their names.
+of their names and internal ones are not listed here.
+
+The keys parent_node, current_node, parse_match, current_position, and
+rule_name are not set if only a parse_trace routine is used.
 
 =head4 Parse Tree Nodes
 
@@ -2572,12 +3111,6 @@ Evaluation can be prevented by setting no_evaluation when the grammar
 is created.  The return of parse_and_evaluate is always undef in this case
 but parse_info can be used to view the parse results.
 
-=head3 TRAVERSAL ONLY
-
-There is some overhead to computing the parameters with the names of
-the subrules.  If traversal_only is set when the grammar is created, this
-is not computed and the first parameter to each evaluation subroutine is undef.
-
 =head2 LEAF DETAILS
 
 Leaf rules can be set up as follows:
@@ -2600,8 +3133,10 @@ section entitled Parse Hash above.
 
 If the parsing should continue forward it should return an array with
 the first argument true (1), the second argument the "parse_match" to store
-at the node, and an optional third argument being the new parse position.
-The new parse position must be greater than or equal to the previous position.
+at the node, and an optional third argument being the non-negative
+change in the parse position.
+The second and third arguments correspond to the substring matched
+and the length of the substring matched when parsing a string.
 If parsing should not continue, parse_forward should return 0.
 
 The subroutine in PARSE_BACKTRACK (or PB) is called when backtracking
@@ -2626,10 +3161,43 @@ See Parse::Stallion::EBNF for this exported keyword.
 =head3 PARSE_FORWARD and PARSE_BACKWARD on non-leaf nodes
 
 It is possible to create PARSE_FORWARD and PARSE_BACKWARD routines on
-non-leaves.  These routines are executed before the node is created
-and after it is destroyed.  They may change the position of the parse
+non-leaves.  The PARSE_FORWARD routine executes before node creation,
+while the PARSE_BACKWARD routine executes after node destruction.
+They may change the position of the parse
 and the returned value of the match is stored in the node's hash
 "parse_match" key.
+
+=head2 INCORPORATE
+
+Rules from other parsers' grammars may be added to a new grammar
+by the parameter INCORPORATE.
+The prefix, which may be an empty string, is prepended to every
+rule name in the incorporated
+grammar, this can avoid conflicting rule names.
+Either the start rule of the incorporated grammar is a subrule
+ in the new grammar or unreachable rules should be set.
+
+Example:
+
+  my %number = (number => qr/[+\-]?(\d+(\.\d*)?|\.\d+)/);
+
+  my $number_parser = new Parse::Stallion(\%number);
+
+  my %grammar_i = (
+   expression =>
+    A('number', qr/\s*\+\s*/, decimal_number,
+     E(sub {return $_[0]->{number} + $_[0]->{decimal_number}})
+   ),
+   number => qr/\d+/
+  );
+
+  my $parser_i = new Parse::Stallion(
+   \%grammar_i,
+   {incorporate => [{grammar_source=>$number_parser, prefix=>'decimal_'}]}
+  );
+
+ my $results_i = $parser_i->parse_and_evaluate('4 + 5.6');
+ #$results_i should contain 9.6
 
 =head2 OTHER PARSING NOTES
 
@@ -2638,13 +3206,9 @@ and the returned value of the match is stored in the node's hash
 Four subroutines may be provided: a default B<'leaf'>
 rule matcher/modifier for when the parser is moving forward and
 a default B<'leaf'> rule "unmodifier" for when the parser is backtracking.
-A third optional subroutine, initial_position_routine,
-sets the initial current value else it is 0.
 
-The fourth subroutine, final_position_routine, should return the final position
-of a successful parse for a given object.  This subroutine is
-similar to parsing strings ensuring, or not ensuring, that the entire
-string is matched instead of matching only a portion.
+The third subroutine, length_routine, should return the final position
+of a successful parse for a given object.
 
   my $object_parser = new Parse::Stallion(\%grammar, {
     ...
@@ -2662,26 +3226,12 @@ string is matched instead of matching only a portion.
        ...
        return; #else parsing halts
       },
-    initial_position_routine => sub {my ($object_ref, $parse_hash) = @_;
-       ...
-       return $initial_position;
-    },
-    final_position_routine =>
-     sub {my ($object_ref, $current_position, $parse_hash) = @_;
+    length_routine =>
+     sub {my ($object_ref) = @_;
         ...
-       return $final_position;
-        # parse ends if $final_position==$current_position
+       return $length_of_object_ref;
      },
   });
-
-By default parsing only ends if the entire string is parsed and
-the start rule is matched.
-To allow parsing to end regardless of position in the string when
-the start rule is matched:
-
-    final_position_routine => sub {return $_[1];}
-
-This is also done with the parameter need_not_match_whole_string.
 
 When evaluating the parse tree, the parameters to the B<'leaf'> nodes are
 the values returned in parse_forward.
@@ -2701,8 +3251,8 @@ the state before being matched by the B<'leaf'> rule.
 
 =head4 NON_DECREASING POSITION
 
-The third value returned from parse_forward should be equal or
-greater than the $current_position that was passed in.
+The third value returned from parse_forward is the change in
+position, it must be non-negative.
 
 The position is used to detect and prevent "left recursion" by not
 allowing a non-B<'leaf'> rule to repeat at the same position.
@@ -2718,7 +3268,7 @@ and the first parse did not succeed, the parser will begin backtracking.
 
 By default, strings are matched, which, if a reference to the
 string instead of the string is passed in to parse_and_evaluate, is similar to
-that found in the test case object_string.t:
+that found in the test case object_string.t.
 
   my $calculator_stallion = new Parse::Stallion({
     ...
@@ -2731,7 +3281,7 @@ that found in the test case object_string.t:
       my $rule_definition = $rule_info->{$rule_name};
       my $m = $rule_definition->{nsl_regex_match};
       if ($$input_string_ref =~ s/\A($m)//) {
-        return (1, $1, 0 - length($string));
+        return (1, $1, length($1));
       }
       return 0;
      },
@@ -2747,15 +3297,9 @@ that found in the test case object_string.t:
       return;
      },
 
-    initial_position_routine =>
+    length_routine =>
      sub {
-       my $input_string_ref = shift;
-       return 0 - length($$input_string_ref);
-     },
-
-    final_position_routine =>
-     sub {
-       return 0;
+       return length(${$_[0]});
      }
   });
 
@@ -2804,7 +3348,7 @@ of those modules is required outside of the test cases for installation.
 
 =head1 VERSION
 
-1.05
+2.00
 
 =head1 AUTHOR
 
@@ -2828,6 +3372,12 @@ under the terms of the Perl Artistic License
 Please email in bug reports.
 
 =head1 TO DO AND FUTURE POSSIBLE CHANGES
+
+Unordered And.
+
+Remove parsing of non-strings?
+
+If unknown parameter is passed in, flag it?
 
 Please send in suggestions.
 

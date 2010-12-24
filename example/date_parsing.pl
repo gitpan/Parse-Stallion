@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-#Copyright 2007-8 Arthur S Goldstein
+#Copyright 2007-10 Arthur S Goldstein
 use Parse::Stallion;
 use Time::Local;
 
@@ -101,6 +101,18 @@ print "now plus 70 hours and 45 seconds is $result\n";
 $result = $date_parser->parse_and_evaluate(
  "6/6/2008 + 2d + 3h");
 print "2 days and 3 hours after 6/6/2008 is $result\n";
+
+my $q = {'a'=>3, 'b'=>1};
+my $ph = {};
+$result = $date_parser->parse_and_evaluate(
+ "6/6/2008 + 2d + 3h", {parse_hash => $ph});
+print "2 days and 3 hours after 6/6/2008 is $result\n";
+
+#use Data::Dumper;
+#print Dumper($ph);
+#print "\n";
+#print Dumper($q);
+#print "\n";
 
 print "\nAll done\n";
 

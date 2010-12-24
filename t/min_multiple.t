@@ -1,6 +1,6 @@
 #!/usr/bin/perl
-#Copyright 2008-9 Arthur S Goldstein
-use Test::More tests => 53;
+#Copyright 2008-10 Arthur S Goldstein
+use Test::More tests => 56;
 BEGIN { use_ok('Parse::Stallion') };
 #use Data::Dumper;
 
@@ -62,11 +62,11 @@ $result = $without_min_parser->parse_and_evaluate("xxx");
 is ($result,'xxx', 'no q without min parser');
 
 my %parsing_rules_with_match_once = (
- start_expression => A(M({f => qr/x/}, MATCH_ONCE()), {g => qr/x/})
+ qqstart_expression => A(M({f => qr/x/}, MATCH_ONCE()), {g => qr/x/})
 );
 
 my %parsing_rules_without_match_once = (
- start_expression => A(M({f => qr/x/}), {g => qr/x/})
+ ppstart_expression => A(M({f => qr/x/}), {g => qr/x/})
 );
 
 my $with_match_parser = new Parse::Stallion(\%parsing_rules_with_match_once);
@@ -80,11 +80,11 @@ $result = $without_match_parser->parse_and_evaluate('xxx');
 is_deeply ($result, {f=> ['x','x'] , g=> 'x'}, 'without match');
 
 my %another = (
- start_expression => A(M({f => qr/x/}, MATCH_ONCE(),
+ oostart_expression => A(M({f => qr/x/}, MATCH_ONCE(),
    MATCH_MIN_FIRST(), 3,5), {g => qr/y/})
 );
 my %anotherm = (
- start_expression => A(M({f => qr/x/},
+ lstart_expression => A(M({f => qr/x/},
    MATCH_MIN_FIRST(), 3,5), {g => qr/y/})
 );
 
@@ -103,12 +103,12 @@ $result = $anotherm_parser->parse_and_evaluate('xxxxy');
 is_deeply ($result, {f=> ['x','x','x','x'] , g=> 'y'}, 'anotherm 4 x');
 
 my %and_match = (
- start_expression => A(
+ ustart_expression => A(
      A({e=>qr/f/}, M({f => qr/x/}), MATCH_ONCE()),
     {k=>qr/x/})
 );
 my %and_no_match = (
- start_expression => A(A({e => qr/f/}, M({f => qr/x/})),{k =>qr/x/})
+ fstart_expression => A(A({e => qr/f/}, M({f => qr/x/})),{k =>qr/x/})
 );
 
 my $and_parser = new Parse::Stallion(\%and_match);
@@ -119,7 +119,7 @@ $result = $and_no_parser->parse_and_evaluate('fxxx');
 is_deeply($result, {e=>'f',f=>['x','x'],k=>'x'}, 'no match once on and');
 
 my %or_match = (
- start => A(O('case1', 'case2', MATCH_ONCE()), qr/x/),
+ pqstart => A(O('case1', 'case2', MATCH_ONCE()), qr/x/),
 
  case1 => qr/xx/,
 
@@ -127,7 +127,7 @@ my %or_match = (
 );
 
 my %or_no_match = (
- start => A(O('case1', 'case2'), qr/x/),
+ pistart => A(O('case1', 'case2'), qr/x/),
 
  case1 => qr/xx/,
 
@@ -143,17 +143,17 @@ $result = $or_no_parser->parse_and_evaluate('xx');
 is_deeply($result, {''=>'x', 'case2'=>'x'}, 'no match once on or');
 
 my $mo_parser_1 = new Parse::Stallion(
-   {rule1 => A(M(qr/t/), M(qr/t/), qr/u/)});
+   {nrule1 => A(M(qr/t/), M(qr/t/), qr/u/)});
 
   my $mo_parser_2 = new Parse::Stallion(
-   {rule2 => A(M(qr/t/, MATCH_ONCE()), M(qr/t/, MATCH_ONCE()), qr/u/)});
+   {mrule2 => A(M(qr/t/, MATCH_ONCE()), M(qr/t/, MATCH_ONCE()), qr/u/)});
 
   my $mo_parser_3 = new Parse::Stallion(
-   {rule2 => A(M(qr/t/, MATCH_ONCE()), M(qr/t/, MATCH_ONCE()),
+   {orule2 => A(M(qr/t/, MATCH_ONCE()), M(qr/t/, MATCH_ONCE()),
     L(qr/u/, PB(sub {return 0})), MATCH_ONCE())});
 
   my $mo_parser_4 = new Parse::Stallion(
-   {rule2 => A(M(qr/t/, MATCH_ONCE()), M(qr/t/, MATCH_ONCE()),
+   {yrule2 => A(M(qr/t/, MATCH_ONCE()), M(qr/t/, MATCH_ONCE()),
     L(qr/u/, PB(sub {return 0})), MATCH_ONCE())}, {fast_move_back => 1});
 
 my $pi = {};
@@ -190,30 +190,35 @@ is_deeply($result, 'x', 'no double x on single x');
 $result = $h->parse_and_evaluate('yy');
 is_deeply($result, 'yy', 'no double x on double y');
 
-  my $parser = new Parse::Stallion({number => L(qr/(\d+)\;/,E(sub{$_[0]+1}))},
-   {need_not_match_whole_string => 1});
+  my $parser = new Parse::Stallion({number => L(qr/(\d+)\;/,E(sub{$_[0]+1}))});
   $input = '342;234;532;444;3;23;';
   $pi = {final_position => 0};
   while ($pi->{final_position} != length($input)) {
     push @results, $parser->parse_and_evaluate($input,
-     {parse_info=> $pi, start_position => $pi->{final_position}});
+     {parse_info=> $pi, start_position => $pi->{final_position},
+      match_length => 0});
   }
   # @results should contain (343, 235, 533, 445, 4, 24)
-is_deeply(\@results, [343, 235, 533, 445, 4, 24]);
+is_deeply(\@results, [343, 235, 533, 445, 4, 24], 'list of results');
 
 my @xresults;
 
-$posinput = pos $input;
-print "pre posinput $posinput\n";
+#$posinput = pos $input;
+#print "pre posinput $posinput\n";
 pos $input = 0;
-  while (my $result = $parser->parse_and_evaluate($input)) {
+  while (my $result = $parser->parse_and_evaluate($input,{global => 1,
+   match_length => 0})) {
     push @xresults, $result;
   }
   # @xresults should contain (343, 235, 533, 445, 4, 24)
-is_deeply(\@xresults, [343, 235, 533, 445, 4, 24]);
+is_deeply(\@xresults, [343, 235, 533, 445, 4, 24], 'list of results two');
 
-$posinput = pos $input;
-print "posinput $posinput\n";
+pos $input = 0;
+  @xresults = $parser->parse_and_evaluate($input,
+   {global => 1, match_length=>0});
+is_deeply(\@xresults, [343, 235, 533, 445, 4, 24], 'list of results three');
+#$posinput = pos $input;
+#print "posinput $posinput\n";
 
 
 my $measure_grammar = {
@@ -297,19 +302,19 @@ is ($tab, 2, 'line tab 2');
 
   my $s;
   my $nmo_parser_x = new Parse::Stallion(
-   {rule => A(M('mm', 1,0), qr/tu/),
+   {grule => A(M('mm', 1,0), qr/tu/),
     mm => A(qr/t/, L(PF(sub {$s .= '0';return 1}),
      PB(sub {$s .= '1';return}))),
   });
 
   my $mo_parser_x = new Parse::Stallion(
-   {rule => A(M('mm', 1,0, MATCH_ONCE), qr/tu/),
+   {hrule => A(M('mm', 1,0, MATCH_ONCE), qr/tu/),
     mm => A(qr/t/, L(PF(sub {$s .= '0';return 1}),
      PB(sub {$s .= '1';return}))),
   });
 
   my $mo_parser_y = new Parse::Stallion(
-   {rule => A(M('mm', 1,0, MATCH_ONCE), qr/tu/),
+   {oorule => A(M('mm', 1,0, MATCH_ONCE), qr/tu/),
     mm => A(qr/t/, L(PF(sub {$s .= '0';return 1}),
      PB(sub {$s .= '1';return}))),
   },
@@ -331,7 +336,7 @@ is ($tab, 2, 'line tab 2');
   our $first;
   our $second;
   my $ms_parser = new Parse::Stallion(
-   {   rule => A({sub_rule_1 => qr/art/}, {sub_rule_2 => qr/hur/},
+   {   pprule => A({sub_rule_1 => qr/art/}, {sub_rule_2 => qr/hur/},
     E(sub {$matched_string = MATCHED_STRING($_[1]);
       $first = $matched_string;
       $second = $_[0]->{sub_rule_1} . $_[0]->{sub_rule_2};
@@ -392,6 +397,19 @@ at step 11
 moving forward is 0
 position is 0
 ', 'parse_trace_routine');
+
+our $tj = 0;
+  my $bmo_parser_4 = new Parse::Stallion(
+   {start_rule => O('xrule2', 'xrule3'),
+    xrule2 => A(M(qr/t/, MATCH_ONCE(), E(sub {$tj= 1;})),
+       M(qr/v/, MATCH_ONCE(), E(sub {$tj=3})),
+      qr/u/, MATCH_ONCE()),
+    xrule3 => L(qr/.*/, E(sub {return "bmo"})),
+   });
+  $result = $bmo_parser_4->parse_and_evaluate('tttttvvvv',{parse_info => $pi});
+#print STDERR "bresult4 $result\n";
+is ($tj, 0, 'checking fast move back');
+is ($result, 'bmo', 'bmo parser');
 
 print "\nAll done\n";
 

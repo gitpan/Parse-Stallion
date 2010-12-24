@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-#Copyright 2008-9 Arthur S Goldstein
+#Copyright 2008-10 Arthur S Goldstein
 #tests a simple assertion
 use Test::More tests => 9;
 BEGIN { use_ok('Parse::Stallion') };
@@ -15,7 +15,7 @@ my %dog_rules = (
      if ($string =~ /cat/) {
         return (0, undef);
      }
-     return (1, '', $cv);
+     return (1, '', 0);
     }
    )),
 );

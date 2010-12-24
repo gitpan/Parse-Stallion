@@ -20,7 +20,7 @@ $skip .= $@;
 eval "use Parse::Stallion::RD";
 $skip .= $@;
 
-#$skip = 1;
+$skip = 1;
 if ($skip) {
 print "ok 1\n";
 print "ok 2\n";

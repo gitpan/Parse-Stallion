@@ -1,11 +1,11 @@
-#Copyright 2008-9 Arthur S Goldstein
+#Copyright 2008-10 Arthur S Goldstein
 
 package Parse::Stallion::EBNF;
 use Carp;
 use strict;
 use warnings;
 use Parse::Stallion;
-our $VERSION='0.6';
+our $VERSION='0.7';
 
 sub ebnf {
   shift;
@@ -119,7 +119,7 @@ my %ebnf_rules = (
       if ($ph->{max_position} < $cv) {
         $ph->{max_position} = $cv;
       }
-      return 1, undef, $cv;
+      return 1, undef, 0;
     })), O(
     A(qr/\s*\#/, 'comment', 'some_white_space'),
     qr/\s*/,
@@ -154,13 +154,13 @@ my %ebnf_rules = (
    the_rule => O('leaf', 'quote', 'pf_pb', 'multiple', 'optional', 'and', 'or'),
    comment => qr/[^\n]*/,
    failed_rule => A(
-    L(PF(sub {$_[0]->{parent_node}->{error_position} =
+    L(PF(sub {${$_[0]->{__current_node_ref}}->{error_position} =
      $_[0]->{parse_hash}->{max_position};
      my $new_position = $_[0]->{current_position};
      if ($new_position < $_[0]->{parse_hash}->{max_position}) {
        $new_position = $_[0]->{parse_hash}->{max_position};
      }
-     return 1, undef, $_[0]->{current_position};})),
+     return 1, undef, 0;})),
     qr/[^;]*\;/,
     E(sub {my (undef, $parameters) = @_;
       my $text = $parameters->{parse_this_ref};
@@ -273,7 +273,7 @@ my %ebnf_rules = (
       my $previous = substr($$in_ref, $pos-1, 1);
       pos $$in_ref = $pos;
       if ($$in_ref =~ /\G([^$previous]+$previous)/) {
-        return 1, $1, $pos + length($1);
+        return 1, $1, length($1);
       }
       else {
         return 0;
@@ -338,7 +338,7 @@ my %ebnf_rules = (
       if ($previous eq '[') {$opposite = ']'};
       if (!defined $opposite) {return 0}
       if ($$in_ref =~ /\G(.*?$opposite($previous2))/s) {
-        return 1, $1, $pos + length($1);
+        return 1, $1, length($1);
       }
       else {
         return 0;
@@ -620,7 +620,7 @@ A PARSE_BACKTRACK routine can follow via a B{ sub {...}}B.
 
 =head1 VERSION
 
-0.6
+0.7
 
 =head1 AUTHOR
 

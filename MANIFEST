@@ -25,6 +25,7 @@ t/event.t
 t/how_many.t
 t/how_many_no_alias.t
 t/in_doc.t
+t/incorporate.t
 t/look_at_tree.t
 t/min_multiple.t
 t/multiple.t
@@ -39,6 +40,8 @@ t/rdfullbasics.t
 t/simp.t
 t/simple_calc.t
 t/space_in_eval.t
+t/start.t
+t/substitute.t
 lib/Parse/Stallion.pm
 lib/Parse/Stallion/CSV.pm
 lib/Parse/Stallion/EBNF.pm

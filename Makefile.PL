@@ -5,7 +5,7 @@ use 5.006;
 WriteMakefile(
     NAME              => 'Parse::Stallion',
     VERSION_FROM      => 'lib/Parse/Stallion.pm', # finds $VERSION
-    PREREQ_PM         => {'Test::More' => 0
+    PREREQ_PM         => {'Test::More' => 0.71
      ,'Time::Local' => 0
      ,'Carp' => 0
     }, # e.g., Module::Name => 1.1
