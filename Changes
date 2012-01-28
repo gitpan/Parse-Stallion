@@ -1,5 +1,9 @@
 Revision history for Perl extension Parse::Stallion.
 
+2.01 
+   No change to code, fixed test cases that caused errors
+   due to non-declared variables.
+
 2.00
     Added the following parameters:
      incorporate

@@ -27,7 +27,7 @@ my %program_rules = (
     E(sub {
       my @statements = @{$_[0]->{full_statement}};
       return sub {
-        foreach $statement (@statements) {
+        foreach my $statement (@statements) {
          &$statement}
       }
     })

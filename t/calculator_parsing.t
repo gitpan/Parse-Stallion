@@ -140,6 +140,7 @@ is ($result, 11, "simple plus");
 #use Data::Dumper;print STDERR "parse trace is ".Dumper($x->{parse_trace})."\n";
 #print STDERR "parse tree is ".$x->{tree}->stringify."\n";
 
+my $x;
 ($result, $x) =
  $calculator_parser->parse_and_evaluate("7 + 4");
 print "Result is $result\n";

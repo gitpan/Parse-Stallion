@@ -268,7 +268,7 @@ is_deeply(\@fa, ['XY','XY','XY'], 'find all match on empty');
   is ($result, 'abc', 'fifth choice');
   #result should be "abc"
 
-  @result = $choice_parser->parse_and_evaluate('abcdex', {match_minimum => 1,
+  my @result = $choice_parser->parse_and_evaluate('abcdex', {match_minimum => 1,
     global => 1});
   is_deeply (\@result, ['abc', 'de'], 'sixth choice');
   #@result should contain ("abc", "de")

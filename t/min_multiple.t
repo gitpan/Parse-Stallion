@@ -189,9 +189,10 @@ is_deeply($result, 'x', 'no double x on single x');
 #use Data::Dumper; print Dumper($result);
 $result = $h->parse_and_evaluate('yy');
 is_deeply($result, 'yy', 'no double x on double y');
+my @results;
 
   my $parser = new Parse::Stallion({number => L(qr/(\d+)\;/,E(sub{$_[0]+1}))});
-  $input = '342;234;532;444;3;23;';
+  my $input = '342;234;532;444;3;23;';
   $pi = {final_position => 0};
   while ($pi->{final_position} != length($input)) {
     push @results, $parser->parse_and_evaluate($input,
@@ -335,6 +336,7 @@ is ($tab, 2, 'line tab 2');
 
   our $first;
   our $second;
+  my $matched_string;
   my $ms_parser = new Parse::Stallion(
    {   pprule => A({sub_rule_1 => qr/art/}, {sub_rule_2 => qr/hur/},
     E(sub {$matched_string = MATCHED_STRING($_[1]);

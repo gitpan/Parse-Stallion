@@ -132,8 +132,10 @@ eval{my $z_parser = new Parse::Stallion(
 
 like($@,qr/Rule number in extraction already exists/,'extraction already exists');
 
+my $prefix_z_parser;
+
 eval{
-  my $prefix_z_parser = new Parse::Stallion(
+  $prefix_z_parser = new Parse::Stallion(
     \%calculator_rules,
     {incorporate=>[{grammar_source=>$numberg_parser, prefix=>'z'},
       {grammar_source=>$calculator_parser, prefix=>'zz'}]}
@@ -164,8 +166,8 @@ is ($nn_result, 16, "zz simple plus");
 
   my %grammar_i = (
    expression =>
-    A('number', qr/\s*\+\s*/, decimal_number,
-     E(sub {return $_[0]->{number} + $_[0]->{decimal_number}})
+    A('number', qr/\s*\+\s*/, 'decimal_number',
+     E(sub {return $_[0]->{number} + $_[0]->{'decimal_number'}})
    ),
    number => qr/\d+/
   );

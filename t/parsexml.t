@@ -25,7 +25,7 @@ my $grammar = {
 
 };
 
-$xml_parser = new Parse::Stallion($grammar);
+my $xml_parser = new Parse::Stallion($grammar);
 
     my @tests = (
         [1, 'abc'                       ],      # 1
@@ -44,7 +44,7 @@ $xml_parser = new Parse::Stallion($grammar);
     );
 
 #    my $count = 1;
-    foreach $t (@tests) {
+    foreach my $t (@tests) {
         my $s = $t->[1];
         my ($M,$r) = $xml_parser->parse_and_evaluate($s);
         my $v = 0;

@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:               Parse-Stallion
-version:            2.00
+version:            2.01
 abstract:           EBNF based regexp backtracking parser and tree evaluator.
 author:
     - Arthur Goldstein <arthur@acm.org>

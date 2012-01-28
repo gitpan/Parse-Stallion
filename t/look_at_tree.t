@@ -64,7 +64,7 @@ my %calculator_rules = (
    qr/\s*[\-+]\s*/, E(qr/\s*([\-+])\s*/),
  ),
  times_or_divide => L(
-   qr/\s*[*\/]\s*/, E(qr/\s*([*\/])\s*/), USE_PARSE_MATCH
+   qr/\s*[*\/]\s*/, E(qr/\s*([*\/])\s*/), 'USE_PARSE_MATCH'
  ),
 );
 
@@ -162,8 +162,8 @@ my $pq =
  start_expression__XZ__1||
 ';
 
-@x = split /\n/, $pm;
-@y = split /\n/, $pq;
+my @x = split /\n/, $pm;
+my @y = split /\n/, $pq;
 is_deeply(\@x,\@y, 'split pm pq');
 
 is($parsed_tree->stringify({values=>['name','parse_match']}), $pq,

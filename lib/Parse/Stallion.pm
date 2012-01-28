@@ -671,7 +671,7 @@ sub parse {
 
 package Parse::Stallion;
 require Exporter;
-our $VERSION = '2.00';
+our $VERSION = '2.01';
 our @ISA = qw(Exporter);
 our @EXPORT =
  qw(A AND O OR LEAF L MATCHED_STRING
@@ -3348,11 +3348,16 @@ of those modules is required outside of the test cases for installation.
 
 =head1 VERSION
 
-2.00
+2.01
 
 =head1 AUTHOR
 
 Arthur Goldstein, E<lt>arthur@acm.orgE<gt>
+
+=head2 NAME
+
+The name Stallion is a mashing of the words 'STRING' and 'TREE' of
+'AND', 'LEAF', and 'OR' 'NODES'.
 
 =head1 ACKNOWLEDGEMENTS
 
@@ -3360,7 +3365,7 @@ Damian Conway, Christopher Frenz, and Greg London.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2007-10 by Arthur Goldstein.  All Rights Reserved.
+Copyright (C) 2007-12 by Arthur Goldstein.  All Rights Reserved.
 
 This module is free software. It may be used, redistributed and/or modified
 under the terms of the Perl Artistic License
@@ -3378,8 +3383,6 @@ Unordered And.
 Remove parsing of non-strings?
 
 If unknown parameter is passed in, flag it?
-
-Please send in suggestions.
 
 =head1 SEE ALSO
 

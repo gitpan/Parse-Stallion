@@ -159,6 +159,7 @@ my $third_calculator_parser = new Parse::Stallion(
 
 #print STDERR "third calc\n";
 
+my $result;
 $result = {};
 my $x;
 $x = $third_calculator_parser->parse_and_evaluate("7", {parse_info=>$result});
@@ -213,19 +214,19 @@ like ($@, qr/contains separator/,'separator named rule');
    my $one_grammar = {start => L(qr/1/)};
    my $parser = new Parse::Stallion($one_grammar);
    my $partial_parser = new Parse::Stallion($one_grammar);
-   $one_results = $parser->parse_and_evaluate('12');  # does not parse
-   $onep_results = $partial_parser->parse_and_evaluate('12',
+   my $one_results = $parser->parse_and_evaluate('12');  # does not parse
+   my $onep_results = $partial_parser->parse_and_evaluate('12',
     {match_length => 0});  # parses
 
 is($one_results, undef, "no partial match");
 is($onep_results, '1', "partial match");
 
-$mult_grammar = {
+my $mult_grammar = {
   start => A(M('empty'), qr/1/),
   empty => qr/.*/};
 my $mult_parser = new Parse::Stallion($mult_grammar);
-$m_result = $mult_parser->parse_and_evaluate('1');
-$m_result2 = $mult_parser->parse_and_evaluate('11');
+my $m_result = $mult_parser->parse_and_evaluate('1');
+my $m_result2 = $mult_parser->parse_and_evaluate('11');
 
 is($m_result, '1', "multiple empty");
 is($m_result2, undef, "multiple empty 2");
